@@ -79,6 +79,8 @@ uv sync                                         # install
 uv run uvicorn app.main:app --reload            # run server → http://localhost:8000
 uv run pytest -q                                # tests (offline)
 uv run python -m scripts.smoke both             # 2 real API calls: Timbre TTS, then Prisma STT on its output
+uv run python -m scripts.latency --dry-run      # count planned calls
+uv run python -m scripts.latency --n 5          # measure warm Gnani latency (10 real calls)
 uv run python -m eval.run_eval --dry-run        # count planned API calls
 uv run python -m eval.run_eval --max-calls 200  # run eval with a hard cap
 uv run python -m eval.report                    # build charts from results
@@ -198,7 +200,7 @@ All randomness seeded. Each stage is a pure function, testable on its own.
 Mark tasks `[x]` as they are completed. `[human]` = Diptanu does this, not Claude Code.
 
 ### M0 — Unblock (Tue Oct 6 – Wed Oct 7)
-- [ ] [human] Register for the contest; read the IP/ownership terms before accepting
+- [x] [human] Register for the contest; read the IP/ownership terms before accepting
 - [ ] [human] Request Evon v3.3 weights on Hugging Face
 - [ ] [human] Ask on Gnani's Discord: is a hosted Evon endpoint available to participants? Does it support tool/function calling?
 - [ ] [human] Find out how credits are counted (per call / per audio-second)
@@ -210,7 +212,7 @@ Mark tasks `[x]` as they are completed. `[human]` = Diptanu does this, not Claud
 (romanized output, variable spelling), D-013 (cold starts), D-014 (error shapes).
 
 ### M1 — End-to-end loop (Thu Oct 8 – Tue Oct 13)
-- [ ] **Decision by Fri Oct 9:** Evon hosted vs self-hosted (record in DECISIONS.md)
+- [x] **Decision by Fri Oct 9:** Evon hosted vs self-hosted → **Kaggle, self-hosted** (D-001)
 - [ ] Evon adapter (see §7)
 - [ ] `/ws` endpoint + session state machine (no tools yet; plain replies)
 - [ ] `index.html`: push-to-talk, transcript, agent text, audio playback

@@ -6,18 +6,36 @@ until it has been tried or confirmed, then **Accepted** or **Superseded**.
 
 ---
 
-## D-001 — Evon hosting: hosted endpoint vs self-hosted
-- **Date:** 2026-10-06 · **Status:** Open, decide by Fri Oct 9
+## D-001 — Evon runs on Kaggle (self-hosted), not a Gnani endpoint
+- **Date:** 2026-10-07 · **Status:** Decided (Diptanu). Was open until Oct 9.
 - **Context:** Evon v3.3 is not on Gnani's API platform. The challenge page
   says to request the open weights on Hugging Face and run them yourself. It's
   a 30B-parameter MoE model with about 3.5B active per token, so all 30B
-  weights must sit in GPU memory: roughly 15–18 GB at 4-bit.
-- **Options:**
-  1. A hosted endpoint, if Gnani offers one via Discord.
-  2. vLLM on a rented GPU.
-  3. A Hugging Face Inference Endpoint.
-- **Either way:** `evon_llm.py` targets the OpenAI-compatible
-  `/v1/chat/completions` API, so the choice is configuration, not code.
+  weights must sit in GPU memory: roughly 15–18 GB at 4-bit. The dev laptop
+  has 7.4 GB of RAM and an integrated GPU, so local inference is impossible.
+- **Decision: Kaggle notebooks.** 2x T4 (16 GB each, 32 GB total), about 30
+  GPU-hours a week, free.
+- **Rejected:**
+  - *Gnani hosted endpoint* — not offered on the API platform; a participant
+    repo suggests one may exist via Discord, still unconfirmed.
+  - *Free Colab* — one T4 (16 GB) is too tight for 30B weights at 4-bit.
+  - *Paid GPU / HF Inference Endpoint* — costs money; keep as the demo-day
+    fallback if Kaggle sessions prove unreliable.
+- **Consequences to design around:**
+  1. **Sessions are temporary** (about 12 h, and they stop when idle). The
+     endpoint URL changes each session, so `EVON_BASE_URL` must be
+     reconfigurable without a code change — it already is, via `.env`.
+  2. **Reaching it from the laptop needs a tunnel** (e.g. cloudflared), since
+     a Kaggle notebook has no public inbound address.
+  3. **The eval does not need the tunnel.** Task-level eval scores saved
+     transcripts, so it can run inside the Kaggle notebook as a batch and
+     return a results file. Only the live demo needs the tunnel.
+  4. **Two things to verify once the weights arrive:** that the serving stack
+     supports Evon's `nemotron_h` architecture at 4-bit across 2 GPUs, and
+     whether Evon does native tool calling (if not, use the prompt-based JSON
+     fallback in CLAUDE.md §7).
+- **Unchanged:** `evon_llm.py` targets the OpenAI-compatible
+  `/v1/chat/completions` API, so host changes stay configuration, not code.
 
 ## D-002 — Hinglish STT uses `lang_code = en-IN`
 - **Date:** 2026-10-06 · **Status:** Proposed (verify in M0 smoke test)
@@ -153,3 +171,37 @@ until it has been tried or confirmed, then **Accepted** or **Superseded**.
 - **Documented:** `{"success": false, "error": {"type": ..., "message": ...}}`
 - The adapter parses both, plus a bare string `detail`, and falls back to a
   generic message. Tested in `tests/test_gnani_adapters.py`.
+
+## D-015 — Measured latency misses the 1.5 s target by ~6x; REST may be the wrong endpoint
+- **Date:** 2026-10-07 · **Status:** Measured. Forces a revisit of D-003.
+- **Method:** `uv run python -m scripts.latency --n 5`, 10 real calls,
+  single machine in India, warm endpoints (run after the M0 smoke test).
+- **Timbre TTS, first audio chunk (ms):** 5142, 3879, **880**, 6835, 7435
+  → p50 **5142**, min 880, max 7435
+- **Prisma STT REST, total (ms), 3.52 s clip:** 11211, 4389, 4654, 4491, 3241
+  → p50 **4491** warm (excluding the first call), min 3241
+- **Per audio-second:** STT costs ~1250 ms per second of audio.
+- **Implied end-of-speech → first audio:** STT 4491 + Evon + TTS 5142
+  ≈ **9.6 s before the LLM**, against a 1.5 s budget in `docs/HLD.md` §12.
+
+**Reading of the numbers:**
+1. **This is not a cold-start effect.** Sample #2 returned a first chunk in
+   880 ms, and #3 then took 6835 ms. Latency is erratic rather than improving,
+   which points to shared server-side capacity or queueing, not warm-up.
+   D-013's "warm up at startup" explanation is therefore wrong on its own.
+2. **Network is not the cause.** TCP connect to `api.vachana.ai` measured
+   ~90 ms, so the time is spent server-side.
+3. **The REST endpoint is likely the problem, not the models.** Gnani's own
+   docs advertise "P95 ~200 ms for STT" for the *streaming* API. We measured
+   4491 ms on *REST* for a 3.5 s clip — a 20x gap. The realtime WebSocket
+   endpoints are the advertised fast path, and we are not using them.
+
+**Consequence:** D-003 (REST for both live and eval) was chosen for
+simplicity, on the assumption that REST and streaming latency were comparable.
+That assumption is now disproven. The next step is to measure Prisma's
+realtime WebSocket endpoint and compare like for like. The eval harness can
+keep using REST (throughput and caching matter there, not latency) even if the
+live path moves to streaming.
+
+**Caveat:** 5 samples per service, one time of day, one network. Re-measure
+before drawing conclusions about Gnani's production capacity.

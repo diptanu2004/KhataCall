@@ -380,11 +380,28 @@ Measured from push-to-talk release to the first TTS byte at the browser.
 Every turn reports its real breakdown in a `latency` message. The eval reports
 p50/p90.
 
-**First measurements (M0 smoke test, single samples, cold endpoints):** Prisma
-2502 ms warm for a 3.52 s clip (first call timed out at 30 s); Timbre first
-chunk 9056 ms. Both services cold-start, so the server sends a warm-up call to
-each at startup. These numbers are far above the budget above and must be
-re-measured warm in M4 before the budget is trusted. See DECISIONS.md D-013.
+### 12.1 Measured, Oct 7 — the budget is not met
+
+`scripts/latency.py --n 5`, 10 real calls, warm endpoints:
+
+| Stage | Budget | p50 measured | min | max |
+|---|---|---|---|---|
+| Prisma STT (REST, 3.52 s clip) | 400 ms | **4491 ms** | 3241 | 11211 |
+| Timbre first audio chunk | 300 ms | **5142 ms** | 880 | 7435 |
+
+That is about **9.6 s before Evon is even called**, against a 1.5 s total
+budget — roughly 6x over.
+
+Three things the numbers rule out:
+- **Not cold start.** One sample returned in 880 ms and the next took 6835 ms.
+  The pattern is erratic, not warming.
+- **Not the network.** TCP connect is ~90 ms; the time is server-side.
+- **Possibly the wrong endpoint.** Gnani's docs advertise P95 ~200 ms for the
+  *streaming* STT API. We measured REST. That 20x gap is the first thing to
+  test, and it reopens D-003.
+
+Until the streaming endpoints are measured, treat the §12 table as a target,
+not a plan. See DECISIONS.md D-015.
 
 ## 13. Failure handling
 
@@ -405,5 +422,5 @@ re-measured warm in M4 before the budget is trusted. See DECISIONS.md D-013.
 | R2 | Credit accounting unit (per call vs per audio-second) decides eval size | Diptanu | Oct 7 |
 | ~~R3~~ | **Resolved (D-012):** `en-IN` returns romanized Hinglish, lowercase, no punctuation, number words intact — but spelling varies (`udhaar`→`udhar`). NLU must match variants. | done | Oct 7 |
 | R4 | No STT confidence → digit-by-digit confirmation needs a different trigger | Design (D-004) | M2 |
-| R5 | Latency: cold starts measured at 9 s (Timbre first chunk) and >30 s (Prisma first call); warm Prisma 2.5 s. The §12 budget may be unreachable (D-013). | Warm-up at startup; re-measure in M4 | M4 |
+| **R5** | **Latency is the top risk.** Warm p50: STT 4491 ms, TTS first chunk 5142 ms = ~9.6 s vs a 1.5 s budget (D-015). Erratic, server-side, REST-only so far. | Measure the realtime WebSocket endpoints; reopen D-003 | before M1 ends |
 | R6 | Loose goods (dedh kilo chini) need fractional quantities. Integer base units (grams) or out of scope? | Decide in M2 | M2 |
