@@ -1,0 +1,25 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# Local databases
+*.db
+*.db-journal
+
+# Eval: recordings and API result cache stay local; results/ and scripts.csv are committed.
+eval/corpus/audio/*
+!eval/corpus/audio/.gitkeep
+eval/cache/*
+!eval/cache/.gitkeep
+eval/noise/*.wav
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
