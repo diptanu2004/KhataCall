@@ -109,6 +109,13 @@ packet loss.
 - **Also reported:**
   - character and word error rate, after normalization
   - latency from end of speech to first reply audio (p50/p90, per stage)
+
+Measured so far (Oct 7, 5 calls per stage): speech-to-text returns a transcript
+**267-367 ms** after the last word, and the first reply audio arrives about
+**857 ms** after that. Choosing Gnani's streaming endpoint over its REST one
+accounted for a 17x cut on the speech-to-text leg. Gnani-side load makes these
+numbers swing by up to 6x between runs, so the project reports p50/p90 with
+timestamps rather than a single best figure.
 - The demo's "phone line mode" toggle uses the **same** degradation code, so
   what you hear in the demo is what was measured.
 

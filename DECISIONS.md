@@ -254,3 +254,28 @@ Fixes, now in `gnani_stt_stream.py`:
   transcripts exist but are off, and no header for them is documented. If they
   can be enabled, the agent could start reasoning before the owner finishes
   speaking. Worth one probe, and worth asking Gnani on Discord.
+
+## D-018 — Timbre: one connection per utterance, opened early; latency is load-bound
+- **Date:** 2026-10-07 · **Status:** Accepted (measured)
+- **Connection reuse does not work.** Sending a second synthesis request on an
+  open socket returns a bare `{"type":"complete"}` with no audio. The docs'
+  "Send one synthesis request at a time" means one request *per connection*,
+  not sequential reuse. The adapter's connection-per-utterance design is
+  therefore required, not merely simple.
+- **First-chunk latency, fresh connection:** p50 **857 ms** (min 702, max 992)
+  including a ~400 ms WebSocket handshake. Synthesis itself runs faster than
+  real time: ~2.3 s total for ~3 s of audio.
+- **But it is load-bound.** The same code, text and settings measured p50
+  **5142 ms** (max 7435) earlier the same day. A 6x swing with nothing changed
+  on our side. See `docs/HLD.md` §12.1.
+- **Consequences:**
+  1. **Pre-open the socket during THINKING.** The handshake is ~400 ms of the
+     857 ms, and we know TTS is coming as soon as Evon is called. This is about
+     opening early, not reusing.
+  2. **Cache templated phrases.** Read-backs come from the executor, not the
+     LLM (D-005), so the phrase set is small and fixed. Pre-synthesising
+     confirmations and number read-backs takes Timbre off the critical path for
+     most turns and saves credits.
+  3. **Never quote a single latency sample.** Report p50/p90 with a timestamp.
+- **Also observed:** a `start` event precedes the audio chunks on the
+  WebSocket, as the SSE docs describe but the WebSocket page does not.
