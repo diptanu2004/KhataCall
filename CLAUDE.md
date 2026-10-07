@@ -78,6 +78,7 @@ If a task seems to need one of these, stop and ask.
 uv sync                                         # install
 uv run uvicorn app.main:app --reload            # run server → http://localhost:8000
 uv run pytest -q                                # tests (offline)
+uv run python -m scripts.smoke both             # 2 real API calls: Timbre TTS, then Prisma STT on its output
 uv run python -m eval.run_eval --dry-run        # count planned API calls
 uv run python -m eval.run_eval --max-calls 200  # run eval with a hard cap
 uv run python -m eval.report                    # build charts from results

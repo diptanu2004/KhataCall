@@ -225,11 +225,11 @@ does. (DECISIONS.md D-003.)
 | Output | JSON `{"type":"audio","data":{chunk_index, audio:<base64>, is_final}}` then `complete` | SSE `start` / `chunk` / `complete` |
 
 - `language: "hi-en"` exists for Hinglish (**VERIFY** quality vs `hi-IN`).
-- Request `encoding: "pcm_s16le"`, `container: "raw"`, 16 kHz. The server
+- Request `encoding: "linear_pcm"`, `container: "raw"` (headerless PCM16), 16 kHz. The server
   base64-decodes and forwards raw PCM to the browser as binary frames, so the
   browser doesn't need a decoder.
-- Voices listed in the docs include Nalini, Kaveri, Deepak; final pick from
-  the voice catalog.
+- Voice: **Poorvi**, the only `hi-en` voice in the catalog (D-011). Fallback:
+  a `hi-IN` voice such as Nalini or Deepak.
 
 ### 7.3 Evon v3.3 (LLM)
 

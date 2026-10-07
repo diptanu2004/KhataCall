@@ -88,3 +88,22 @@ until it has been tried or confirmed, then **Accepted** or **Superseded**.
 - **Why:** one source of truth (the ledger entries), so the balance can never
   drift. At kirana scale (hundreds of entries per customer), a `SUM` query
   takes well under a millisecond.
+
+## D-010 — Prisma `format=verbatim`, not `transcribe` (ITN)
+- **Date:** 2026-10-07 · **Status:** Proposed
+- **Why:** with `format=transcribe`, Prisma applies inverse text normalization
+  ("five thousand rupees" → "₹5,000"). That would move amount parsing into
+  the STT model, where errors are silent and untestable. Hard rule 7 requires
+  amounts to be parsed by our own code. `verbatim` keeps the spoken form
+  ("dedh sau") for `nlu/numbers.py`, which also handles digits in case Prisma
+  emits them anyway.
+- **Measure in M4:** task accuracy with `transcribe` vs `verbatim` on the same
+  clips. If ITN is clearly more accurate on degraded audio, revisit, with
+  `numbers.py` parsing ITN output as digits.
+
+## D-011 — Timbre voice: Poorvi (`hi-en`)
+- **Date:** 2026-10-07 · **Status:** Proposed (listen in M0 smoke test)
+- **Why:** Poorvi is the only voice the catalog lists for `hi-en` (Hinglish).
+  The 13 Hindi voices (Nalini, Deepak, …) are `hi-IN` and may read English
+  words ("cash", "packet") with Hindi pronunciation. Fallback if Poorvi sounds
+  wrong: a `hi-IN` voice with `language: hi-IN`.

@@ -16,8 +16,8 @@ class Settings(BaseSettings):
     # Prisma: code-mixed English-Hindi is supported via en-IN (DECISIONS.md D-002).
     stt_language: str = "en-IN"
 
-    # Timbre. VERIFY: final voice pick from the voice catalog; hi-en quality vs hi-IN.
-    tts_voice: str = "Nalini"
+    # Timbre. Poorvi is the only hi-en (Hinglish) voice in the catalog. VERIFY: hi-en quality vs hi-IN.
+    tts_voice: str = "Poorvi"
     tts_language: str = "hi-en"
     tts_sample_rate: int = 16_000
 
