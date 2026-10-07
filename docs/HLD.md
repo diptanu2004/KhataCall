@@ -380,6 +380,12 @@ Measured from push-to-talk release to the first TTS byte at the browser.
 Every turn reports its real breakdown in a `latency` message. The eval reports
 p50/p90.
 
+**First measurements (M0 smoke test, single samples, cold endpoints):** Prisma
+2502 ms warm for a 3.52 s clip (first call timed out at 30 s); Timbre first
+chunk 9056 ms. Both services cold-start, so the server sends a warm-up call to
+each at startup. These numbers are far above the budget above and must be
+re-measured warm in M4 before the budget is trusted. See DECISIONS.md D-013.
+
 ## 13. Failure handling
 
 | Failure | Behaviour |
@@ -397,7 +403,7 @@ p50/p90.
 |---|---|---|---|
 | R1 | Evon access: hosted endpoint vs self-host on GPU; tool-calling support | Diptanu (Discord, Hugging Face) | Oct 9 |
 | R2 | Credit accounting unit (per call vs per audio-second) decides eval size | Diptanu | Oct 7 |
-| R3 | Prisma `en-IN` output script for Hindi words (romanized vs Devanagari) | Smoke test | M0 |
+| ~~R3~~ | **Resolved (D-012):** `en-IN` returns romanized Hinglish, lowercase, no punctuation, number words intact — but spelling varies (`udhaar`→`udhar`). NLU must match variants. | done | Oct 7 |
 | R4 | No STT confidence → digit-by-digit confirmation needs a different trigger | Design (D-004) | M2 |
-| R5 | REST vs realtime STT latency, still unmeasured | Measure in M4 | M4 |
+| R5 | Latency: cold starts measured at 9 s (Timbre first chunk) and >30 s (Prisma first call); warm Prisma 2.5 s. The §12 budget may be unreachable (D-013). | Warm-up at startup; re-measure in M4 | M4 |
 | R6 | Loose goods (dedh kilo chini) need fractional quantities. Integer base units (grams) or out of scope? | Decide in M2 | M2 |

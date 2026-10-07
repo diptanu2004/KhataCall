@@ -16,6 +16,21 @@ from app.adapters.gnani_common import API_KEY_HEADER, GnaniAPIError, require_key
 MAX_DURATION_S = 60.0  # documented hard limit for REST; ideal is <= 30 s
 
 
+def _error_from_body(body: dict, status: int) -> GnaniAPIError:
+    """Prisma returns two error shapes; the docs only show the first.
+
+    docs:     {"success": false, "error": {"type": ..., "message": ...}}
+    observed: {"detail": {"error_code": ..., "message": ..., "status_code": ...}}  (auth errors)
+    """
+    for block, type_key in ((body.get("error"), "type"), (body.get("detail"), "error_code")):
+        if isinstance(block, dict):
+            return GnaniAPIError(
+                block.get("message", "transcription failed"), status=status, error_type=block.get(type_key)
+            )
+    detail = body.get("detail")
+    return GnaniAPIError(detail if isinstance(detail, str) else "transcription failed", status=status)
+
+
 class PrismaSTT:
     # The REST request has no model field; the docs present this endpoint as Prisma v2.5.
     model_id = "prisma-v2.5"
@@ -28,7 +43,9 @@ class PrismaSTT:
         fmt: str = "verbatim",
         bias_list: Sequence[str] = (),
         client: httpx.AsyncClient | None = None,
-        timeout_s: float = 30.0,
+        # A cold first call was observed taking >30 s (2.5 s warm). A timed-out call may still
+        # spend a credit, so the default is generous rather than tight.
+        timeout_s: float = 90.0,
     ) -> None:
         # "verbatim" keeps numbers in spoken form so nlu/numbers.py parses them (rule 7);
         # "transcribe" would apply Prisma's ITN ("dedh sau" -> "150"?). DECISIONS.md D-010.
@@ -63,12 +80,7 @@ class PrismaSTT:
             raise GnaniAPIError(response.text[:200] or "non-JSON response", status=response.status_code) from None
 
         if response.status_code != 200 or not body.get("success"):
-            error = body.get("error") or {}
-            raise GnaniAPIError(
-                error.get("message", "transcription failed"),
-                status=response.status_code,
-                error_type=error.get("type"),
-            )
+            raise _error_from_body(body, response.status_code)
         return Transcript(text=body.get("transcript", ""), latency_ms=latency_ms, raw=body)
 
     async def aclose(self) -> None:

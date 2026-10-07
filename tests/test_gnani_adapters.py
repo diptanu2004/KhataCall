@@ -74,6 +74,28 @@ def test_prisma_error_body_raises_with_type_and_status():
     assert "bad audio" in str(err.value)
 
 
+def test_prisma_auth_error_detail_shape_raises():
+    """Observed shape for auth failures; the docs only show the success/error shape."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            401, json={"detail": {"error_code": "MISSING_API_KEY", "message": "Missing API key", "status_code": 401}}
+        )
+
+    with pytest.raises(GnaniAPIError) as err:
+        asyncio.run(prisma_with(handler).transcribe(ONE_SECOND_8K, language="en-IN"))
+    assert (err.value.status, err.value.error_type) == (401, "MISSING_API_KEY")
+    assert "Missing API key" in str(err.value)
+
+
+def test_prisma_string_detail_error_raises():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(422, json={"detail": "Unprocessable entity"})
+
+    with pytest.raises(GnaniAPIError, match="Unprocessable entity"):
+        asyncio.run(prisma_with(handler).transcribe(ONE_SECOND_8K, language="en-IN"))
+
+
 def test_prisma_non_json_error_raises():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(502, text="Bad Gateway")

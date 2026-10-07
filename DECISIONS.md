@@ -107,3 +107,49 @@ until it has been tried or confirmed, then **Accepted** or **Superseded**.
   The 13 Hindi voices (Nalini, Deepak, …) are `hi-IN` and may read English
   words ("cash", "packet") with Hindi pronunciation. Fallback if Poorvi sounds
   wrong: a `hi-IN` voice with `language: hi-IN`.
+
+## D-012 — Prisma `en-IN` returns romanized Hinglish, with variable spelling
+- **Date:** 2026-10-07 · **Status:** Accepted (measured, M0 smoke test)
+- **Evidence:** one round trip, Timbre (Poorvi, `hi-en`) → Prisma (`en-IN`,
+  `verbatim`), 3.52 s of audio.
+  - sent: `Sharma ji ke khate mein dedh sau rupaye udhaar likh doon?`
+  - heard: `sharma ji ke khate mein dedh sau rupay udhar likh du`
+- **Findings:**
+  1. **Latin script, not Devanagari.** Resolves risk R3. `normalize.py` still
+     needs Devanagari handling for Timbre/`hi-IN` comparisons, but the product
+     path is romanized throughout.
+  2. **Lowercase, no punctuation.** The trailing `?` was dropped.
+  3. **Number words survive.** `dedh sau` came back as words, not `150`, so
+     `verbatim` keeps amounts parseable by `nlu/numbers.py` (hard rule 7, D-010).
+  4. **Spelling is not stable.** `rupaye`→`rupay`, `udhaar`→`udhar`,
+     `doon`→`du`. Romanized Hindi has no canonical spelling, so exact string
+     matching will fail.
+- **Consequences:** `nlu/numbers.py` and `nlu/names.py` must match on spelling
+  variants, not exact strings (e.g. a normalized key that collapses doubled
+  vowels and trailing `h`, so `udhaar`/`udhar`/`udhhar` agree). Every lookup
+  table needs its variants listed, and tests must cover them. Intent keywords
+  (`udhaar`, `diye`, `baaki`) need the same treatment.
+
+## D-013 — Latency: cold starts are real; the budget applies to warm calls
+- **Date:** 2026-10-07 · **Status:** Observed, M0 smoke test
+- **Numbers (single samples, first ever calls on this key):**
+  - Timbre first audio chunk: **9056 ms**; full 3.52 s utterance: 11935 ms
+  - Prisma: first call **timed out at 30 s**; immediate retry **2502 ms**
+- **Reading:** both services appear to cold-start. 2502 ms warm for a 3.5 s
+  clip is still well above the 400 ms STT budget in `docs/HLD.md` §12, but
+  that figure is one sample on an unwarmed endpoint.
+- **Actions:**
+  1. STT adapter default timeout raised 30 s → 90 s. A timed-out call may
+     still spend a credit, so failing slow beats failing twice.
+  2. Before the demo, send one warm-up call to each service at startup.
+  3. Re-measure p50/p90 warm in M4 before trusting the latency budget. If
+     Timbre's first chunk stays near 9 s, the 1.5 s target is unreachable and
+     the budget in §12 needs rewriting.
+
+## D-014 — Prisma returns two different error shapes
+- **Date:** 2026-10-07 · **Status:** Accepted (measured)
+- **Observed** on an auth failure:
+  `{"detail": {"error_code": "MISSING_API_KEY", "message": ..., "status_code": 401}}`
+- **Documented:** `{"success": false, "error": {"type": ..., "message": ...}}`
+- The adapter parses both, plus a bare string `detail`, and falls back to a
+  generic message. Tested in `tests/test_gnani_adapters.py`.

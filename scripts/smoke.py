@@ -60,10 +60,10 @@ async def run_tts(text: str, out: Path) -> None:
     print(f"  first chunk {first_chunk_ms:.0f} ms, done {total_ms:.0f} ms, {seconds:.2f} s of audio -> {out}")
 
 
-async def run_stt(path: Path) -> None:
+async def run_stt(path: Path, timeout_s: float) -> None:
     s = get_settings()
     clip = load_clip(path)
-    stt = PrismaSTT(s.gnani_api_key.get_secret_value(), base_url=s.gnani_base_url)
+    stt = PrismaSTT(s.gnani_api_key.get_secret_value(), base_url=s.gnani_base_url, timeout_s=timeout_s)
     print(f"Prisma: language={s.stt_language} file={path} ({clip.duration_s:.2f} s @ {clip.sample_rate} Hz)")
     try:
         result = await stt.transcribe(clip, language=s.stt_language)
@@ -78,6 +78,7 @@ def main() -> int:
     parser.add_argument("what", choices=["tts", "stt", "both"])
     parser.add_argument("wav", nargs="?", type=Path, default=DEFAULT_WAV, help="input for stt / output for tts")
     parser.add_argument("--text", default=DEFAULT_TEXT)
+    parser.add_argument("--timeout", type=float, default=120.0, help="STT read timeout in seconds")
     args = parser.parse_args()
 
     try:
@@ -87,7 +88,7 @@ def main() -> int:
             if not args.wav.exists():
                 print(f"{args.wav} not found; run `tts` first or pass a WAV path", file=sys.stderr)
                 return 2
-            asyncio.run(run_stt(args.wav))
+            asyncio.run(run_stt(args.wav, args.timeout))
     except GnaniAPIError as e:
         print(f"Gnani API error: {e}", file=sys.stderr)
         return 1

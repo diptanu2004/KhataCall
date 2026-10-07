@@ -161,6 +161,10 @@ real-time frame cadence; switching to it is an M4 latency experiment.
 ### Number parsing (`nlu/numbers.py`) — must be heavily unit-tested
 Hindi 1–99 are irregular → lookup table. Multipliers: sau, hazaar, lakh,
 crore. Fractions: sava (+¼), sadhe (+½), paune (−¼), dedh (1.5), dhai (2.5).
+**Romanized spelling is not stable** — Prisma returned `rupay` for "rupaye",
+`udhar` for "udhaar", `du` for "doon" (D-012). Match on a normalized key
+(collapse doubled vowels, trailing `h`), never on exact strings, and list
+variants in every lookup table.
 Also handle English words, digits, mixed forms ("2 hazaar 500", "dedh sau"),
 "rupaye/rupees/rs", and ambiguity → return `None` (agent re-asks), never guess.
 
@@ -199,9 +203,11 @@ Mark tasks `[x]` as they are completed. `[human]` = Diptanu does this, not Claud
 - [ ] [human] Ask on Gnani's Discord: is a hosted Evon endpoint available to participants? Does it support tool/function calling?
 - [ ] [human] Find out how credits are counted (per call / per audio-second)
 - [x] Scaffold the repo, pyproject, `.env.example`, adapter Protocols, fakes
-- [ ] Smoke scripts: one Prisma transcription, one Timbre synthesis (verified against docs)
+- [x] Smoke scripts: one Prisma transcription, one Timbre synthesis (verified against docs)
 
 **Done when:** a real Prisma call and a real Timbre call succeed from the adapters.
+✅ Both succeeded Oct 7 (`uv run python -m scripts.smoke both`). Findings: D-012
+(romanized output, variable spelling), D-013 (cold starts), D-014 (error shapes).
 
 ### M1 — End-to-end loop (Thu Oct 8 – Tue Oct 13)
 - [ ] **Decision by Fri Oct 9:** Evon hosted vs self-hosted (record in DECISIONS.md)
