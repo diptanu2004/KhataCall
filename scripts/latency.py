@@ -2,7 +2,7 @@
 
     uv run python -m scripts.latency --dry-run        # print planned call count, spend nothing
     uv run python -m scripts.latency --n 5            # 5 calls per service
-    uv run python -m scripts.latency --n 5 --only tts
+    uv run python -m scripts.latency --n 5 --only stt_stream
 
 Every call is a real API call. Results print per sample so a cold first call
 stays visible, and summary stats are given both with and without it.
@@ -10,7 +10,14 @@ stays visible, and summary stats are given both with and without it.
 What is measured:
   TTS  first_chunk_ms  connect + synthesis until the first audio byte arrives
        total_ms        until the 'complete' event
-  STT  total_ms        request sent until the transcript is parsed
+  STT        total_ms  request sent until the transcript is parsed (REST)
+  STT_STREAM total_ms  last frame sent until the transcript arrives ("tail")
+
+REST and streaming are not measured the same way, because the pipelines differ.
+REST can only start after push-to-talk is released, so its whole duration is
+felt. Streaming sends audio while the owner is still speaking, so only the tail
+after the last frame is felt. Both numbers are therefore "time the owner waits
+after they stop talking", which is what docs/HLD.md §12 budgets.
 
 The headline number for the demo is TTS first_chunk_ms + STT total_ms: the two
 Gnani legs of the end-of-speech -> first-audio path in docs/HLD.md §12.
@@ -28,6 +35,7 @@ from pathlib import Path
 
 from app.adapters.gnani_common import GnaniAPIError
 from app.adapters.gnani_stt import PrismaSTT
+from app.adapters.gnani_stt_stream import PrismaStreamingSTT
 from app.adapters.gnani_tts import TimbreTTS
 from app.config import get_settings
 from scripts.smoke import DEFAULT_WAV, load_clip
@@ -86,6 +94,21 @@ async def measure_tts(n: int) -> list[Sample]:
     return samples
 
 
+async def measure_stt_stream(n: int, wav: Path) -> list[Sample]:
+    s = get_settings()
+    clip = load_clip(wav)
+    stt = PrismaStreamingSTT(s.gnani_api_key.get_secret_value())
+    samples: list[Sample] = []
+    for i in range(n):
+        result = await stt.transcribe(clip, language=s.stt_language)
+        tail = result.latency_ms or 0.0
+        vad = result.raw.get("last_frame_to_vad_end_ms")
+        samples.append(Sample(i, "stt_stream", None, round(tail, 1), round(clip.duration_s, 2), result.text[:40]))
+        vad_note = f"  (vad end at +{vad:.0f} ms)" if vad is not None else ""
+        print(f"  strm #{i}  tail  {tail:7.0f} ms  segments={result.raw['num_segments']}{vad_note}")
+    return samples
+
+
 async def measure_stt(n: int, wav: Path) -> list[Sample]:
     s = get_settings()
     clip = load_clip(wav)
@@ -104,7 +127,7 @@ async def measure_stt(n: int, wav: Path) -> list[Sample]:
 
 def report(samples: list[Sample]) -> dict:
     out: dict = {"measured_at": datetime.now(UTC).isoformat(timespec="seconds"), "stats": {}}
-    for service in ("tts", "stt"):
+    for service in ("tts", "stt", "stt_stream"):
         rows = [s for s in samples if s.service == service]
         if not rows:
             continue
@@ -124,13 +147,15 @@ def report(samples: list[Sample]) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--n", type=int, default=5, help="calls per service (default 5)")
-    parser.add_argument("--only", choices=["tts", "stt"], help="measure one service only")
+    parser.add_argument(
+        "--only", choices=["tts", "stt", "stt_stream"], help="measure one service only"
+    )
     parser.add_argument("--wav", type=Path, default=DEFAULT_WAV, help="input clip for STT")
     parser.add_argument("--max-calls", type=int, default=20, help="hard cap on total API calls")
     parser.add_argument("--dry-run", action="store_true", help="print the planned call count and exit")
     args = parser.parse_args()
 
-    services = [args.only] if args.only else ["tts", "stt"]
+    services = [args.only] if args.only else ["tts", "stt", "stt_stream"]
     planned = args.n * len(services)
     print(f"Planned API calls: {planned} ({args.n} x {len(services)} service(s): {', '.join(services)})")
     if args.dry_run:
@@ -138,7 +163,7 @@ def main() -> int:
     if planned > args.max_calls:
         print(f"Refusing: {planned} calls exceeds --max-calls {args.max_calls}", file=sys.stderr)
         return 2
-    if "stt" in services and not args.wav.exists():
+    if {"stt", "stt_stream"} & set(services) and not args.wav.exists():
         print(f"{args.wav} not found; run `scripts.smoke tts` first", file=sys.stderr)
         return 2
 
@@ -148,6 +173,8 @@ def main() -> int:
             samples += asyncio.run(measure_tts(args.n))
         if "stt" in services:
             samples += asyncio.run(measure_stt(args.n, args.wav))
+        if "stt_stream" in services:
+            samples += asyncio.run(measure_stt_stream(args.n, args.wav))
     except GnaniAPIError as e:
         print(f"Gnani API error after {len(samples)} samples: {e}", file=sys.stderr)
     finally:

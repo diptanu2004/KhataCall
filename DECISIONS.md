@@ -205,3 +205,52 @@ live path moves to streaming.
 
 **Caveat:** 5 samples per service, one time of day, one network. Re-measure
 before drawing conclusions about Gnani's production capacity.
+
+## D-016 — Live STT uses the realtime WebSocket, not REST. Supersedes D-003.
+- **Date:** 2026-10-07 · **Status:** Accepted (measured)
+- **Method:** `scripts/latency.py --only stt_stream --n 5`, same 3.52 s clip
+  REST was measured on, same `en-IN` / `verbatim` settings.
+
+| Endpoint | What the owner waits after their last word | p50 | min | max |
+|---|---|---|---|---|
+| REST `POST /stt/v3` | whole request, which can only start on release | **4491 ms** | 3241 | 11211 |
+| Realtime `wss://.../stt/v3/stream` | tail after the last frame | **267 ms** | 218 | 496 |
+
+- **17x faster, and under the 400 ms budget** in `docs/HLD.md` §12.
+- **Same output.** All five streaming runs returned exactly the transcript REST
+  returned: `sharma ji ke khate mein dedh sau rupay udhar likh du`. The speed
+  costs no accuracy.
+- **Why REST is so much slower:** REST cannot begin until push-to-talk is
+  released, so the owner waits for upload plus the whole inference. Streaming
+  sends audio while they are still speaking, leaving only the tail. The server
+  reports its own inference as `latency: 153` ms, consistent with the docs'
+  "P95 ~200 ms" claim — which applies to the streaming API, as D-015 suspected.
+
+**What made it work.** The first attempt returned no transcript at all. The
+VAD closes a segment only after `x-min-silence-ms` of silence (default 500 ms),
+and the adapter appended just 400 ms of padding, so the segment never closed.
+Fixes, now in `gnani_stt_stream.py`:
+1. `x-min-silence-ms: 200` — the default 500 ms is a direct latency cost, and
+   push-to-talk release already marks the end of speech.
+2. Silence padding sized from that value plus a margin, so the VAD always trips.
+3. The padding is **burst, not paced**. It carries no information, so pacing it
+   would add its own duration to the wait.
+4. Latency is measured from the last frame of *real* audio, excluding padding —
+   that is what the owner actually waits.
+
+- **Eval keeps using REST.** Throughput and disk caching matter there, not
+  latency, and REST needs no pacing, so a batch runs far faster than real time.
+  Both adapters satisfy the same `STT` Protocol, so the eval chooses per run.
+- **Undocumented behaviour, worth knowing (D-017).**
+
+## D-017 — Prisma's realtime API does more than the docs say
+- **Date:** 2026-10-07 · **Status:** Observed. Do not depend on it without a fallback.
+- The live server sends events the docs omit: **`speech_start`**, and
+  **`speech_end`** where the docs name the event `processing`. Transcripts
+  carry undocumented `utterance_id` and `is_final` fields. The adapter handles
+  both names and treats a missing `is_final` as final.
+- `connected.config` advertises **`partials_enabled: false`**,
+  `partial_interval_ms: 450`, `partial_max_window_s: 15.0`. So interim
+  transcripts exist but are off, and no header for them is documented. If they
+  can be enabled, the agent could start reasoning before the owner finishes
+  speaking. Worth one probe, and worth asking Gnani on Discord.
