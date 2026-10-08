@@ -17,6 +17,7 @@ from scripts.calibrate import (
     dbfs,
     device_warning,
     rms,
+    take_problem,
     verdicts,
 )
 
@@ -127,3 +128,37 @@ def test_dc_offset_is_flagged_without_failing_the_run():
     notes, ok = verdicts(good_reading(dc_offset=0.05))
     assert ok
     assert any("DC offset" in n for n in notes)
+
+
+# --- is the take even a measurement? ---------------------------------------
+# A single Enter used to both start and stop the recording, so the room got
+# measured against itself and reported a meaningless 0 dB SNR as if it were a
+# verdict. These guard the replacement.
+
+QUIET_ROOM_RMS = 0.0003  # about -70 dBFS, as measured on the dev laptop
+
+
+def test_an_instant_take_is_reported_as_a_mistake_not_a_verdict():
+    nothing = np.zeros(int(0.05 * 16_000), dtype="float32")
+    problem = take_problem(nothing, QUIET_ROOM_RMS)
+    assert problem is not None
+    assert "first Enter starts" in problem
+
+
+def test_a_take_of_only_room_noise_is_rejected():
+    """Long enough, but nobody spoke."""
+    room = (np.random.default_rng(0).normal(0, QUIET_ROOM_RMS, 32_000)).astype("float32")
+    problem = take_problem(room, QUIET_ROOM_RMS)
+    assert problem is not None
+    assert "barely above the room noise" in problem
+
+
+def test_a_real_spoken_take_passes():
+    t = np.linspace(0, 2, 32_000, endpoint=False)
+    speech = (0.2 * np.sin(2 * np.pi * 150 * t)).astype("float32")
+    assert take_problem(speech, QUIET_ROOM_RMS) is None
+
+
+def test_snr_is_never_rendered_as_minus_zero():
+    notes, _ = verdicts(good_reading(noise_dbfs=-18.4, speech_rms_dbfs=-18.0))
+    assert not any("-0 dB" in n for n in notes)

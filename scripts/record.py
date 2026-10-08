@@ -139,6 +139,10 @@ def calibrated_device() -> int | None:
         return None
     name = config.get("device_name") or "system default"
     print(f"Using {name}  (noise floor {config.get('noise_floor_dbfs')} dBFS, SNR {config.get('snr_db')} dB)")
+    if not config.get("usable", True):
+        print("  That calibration did not pass. Recording now risks a corpus the eval cannot use.")
+        if input("  Carry on anyway? [y/N] > ").strip().lower() != "y":
+            raise SystemExit("Run: uv run python -m scripts.calibrate")
     return config.get("device")
 
 

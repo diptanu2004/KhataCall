@@ -124,6 +124,25 @@ def active_speech_rms(audio: np.ndarray, frame_ms: int = 20) -> float:
     return float(loud.mean()) if loud.size else rms(audio)
 
 
+MIN_TAKE_SECONDS = 0.8
+# Below this the take cannot be speech, so report it as a mistake rather than
+# dressing it up as a verdict about the room.
+MIN_PLAUSIBLE_SNR_DB = 6.0
+
+
+def take_problem(speech: np.ndarray, noise_rms: float) -> str | None:
+    """Why this take is not a usable measurement of someone speaking, if it is not."""
+    seconds = speech.size / SAMPLE_RATE
+    if seconds < MIN_TAKE_SECONDS:
+        return (
+            f"only {seconds:.1f}s captured - the first Enter starts the recording, "
+            "the second stops it."
+        )
+    if dbfs(active_speech_rms(speech)) - dbfs(noise_rms) < MIN_PLAUSIBLE_SNR_DB:
+        return "that is barely above the room noise - was the line read aloud, and is the right mic selected?"
+    return None
+
+
 @dataclass
 class Reading:
     noise_dbfs: float
@@ -167,20 +186,20 @@ def verdicts(r: Reading) -> tuple[list[str], bool]:
         notes.append(f"Speech peak {r.speech_peak_dbfs:.0f} dBFS - usable, {PEAK_IDEAL[0]:.0f} to {PEAK_IDEAL[1]:.0f} is ideal.")
 
     if r.snr_db >= SNR_GOOD:
-        notes.append(f"Signal-to-noise {r.snr_db:.0f} dB - plenty of headroom for the eval conditions.")
+        notes.append(f"Signal-to-noise {round(r.snr_db):d} dB - plenty of headroom for the eval conditions.")
     elif r.snr_db >= SNR_OK:
         notes.append(
-            f"Signal-to-noise {r.snr_db:.0f} dB - workable, but the 20 dB eval condition will be "
+            f"Signal-to-noise {round(r.snr_db):d} dB - workable, but the 20 dB eval condition will be "
             "a little muddied by the room."
         )
     elif r.snr_db >= SNR_POOR:
         notes.append(
-            f"Signal-to-noise {r.snr_db:.0f} dB - too close to the eval's quietest condition (20 dB). "
+            f"Signal-to-noise {round(r.snr_db):d} dB - too close to the eval's quietest condition (20 dB). "
             "The 'clean' baseline would not be clean."
         )
         ok = False
     else:
-        notes.append(f"Signal-to-noise {r.snr_db:.0f} dB - unusable for the corpus.")
+        notes.append(f"Signal-to-noise {round(r.snr_db):d} dB - unusable for the corpus.")
         ok = False
 
     if abs(r.dc_offset) > 0.01:
@@ -232,16 +251,30 @@ def choose_device(preset: int | None) -> int | None:
         return preset
 
     print_devices()
-    print("\nWhich microphone? A headset or external mic usually beats a laptop's built-in one.")
+    good = [(i, d) for i, d in devices if device_warning(d) is None]
+    if good:
+        best = max(good, key=lambda pair: float(pair[1].get("default_samplerate") or 0))
+        name = " ".join(best[1]["name"].split())
+        print(f"\nSuggested: [{best[0]}] {name} ({best[1]['default_samplerate']:.0f} Hz)")
+    print("\nA wired or built-in mic beats a Bluetooth one here: Bluetooth mics capture in")
+    print("hands-free mode, which is narrowband and compressed - the very degradation the")
+    print("eval is supposed to add itself, at known settings.")
+
     raw = input("Device number (Enter for the system default) > ").strip()
     if not raw:
         return None
     if not raw.isdigit() or int(raw) not in {i for i, _ in devices}:
         raise SystemExit(f"{raw!r} is not one of the listed device numbers.")
-    return int(raw)
+
+    chosen = int(raw)
+    if (warning := device_warning(next(d for i, d in devices if i == chosen))) is not None:
+        print(f"\n  Warning: {warning}.")
+        if input("  Use it anyway? [y/N] > ").strip().lower() != "y":
+            raise SystemExit("Nothing changed. Run again and pick another device.")
+    return chosen
 
 
-def save_config(device: int | None, reading: Reading) -> None:
+def save_config(device: int | None, reading: Reading, usable: bool) -> None:
     CONFIG.parent.mkdir(parents=True, exist_ok=True)
     name = None
     if device is not None:
@@ -256,6 +289,7 @@ def save_config(device: int | None, reading: Reading) -> None:
                 "noise_floor_dbfs": round(reading.noise_dbfs, 1),
                 "speech_peak_dbfs": round(reading.speech_peak_dbfs, 1),
                 "snr_db": round(reading.snr_db, 1),
+                "usable": usable,
             },
             indent=2,
         ),
@@ -351,10 +385,17 @@ def calibrate(device: int | None) -> int:
 
     print("\nStep 2 of 2: your speaking level.")
     print(f'Read this aloud, as you would in a shop:\n\n    "{TEST_SENTENCE}"\n')
-    speech = record_until_enter("  Enter to start, then read it, then Enter again > ", device)
-    if speech.size < SAMPLE_RATE // 2:
-        print("  Nothing recorded. Check the device and try again.", file=sys.stderr)
-        return 1
+
+    # Two separate prompts. With one, the Enter meant to start the take stops it instead,
+    # and the room gets measured against itself for a nonsensical 0 dB SNR.
+    while True:
+        input("  Enter to START recording > ")
+        speech = record_until_enter("  recording... read the line aloud, then Enter to STOP > ", device)
+        if (problem := take_problem(speech, noise_rms)) is None:
+            break
+        print(f"  {problem}")
+        if input("  Try again? [Y/n] > ").strip().lower() == "n":
+            return 1
 
     reading = Reading(
         noise_dbfs=dbfs(noise_rms),
@@ -369,14 +410,13 @@ def calibrate(device: int | None) -> int:
     for note in notes:
         print(f"  {note}")
 
+    save_config(device, reading, ok)
     if ok:
         print("\nGood to record. Run:  uv run python -m scripts.record")
-        save_config(device, reading)
         return 0
 
     print("\nFix the points above and run this again.")
     print("Tip: --monitor gives a live meter while you move the mic or change the gain.")
-    save_config(device, reading)
     return 1
 
 
