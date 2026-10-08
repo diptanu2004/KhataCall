@@ -41,10 +41,15 @@ If a task seems to need one of these, stop and ask.
    sample rates, streaming protocol, confidence fields: read
    https://docs.gnani.ai (or ask). Anything unverified gets a `# VERIFY:` comment.
    All Gnani-specific code lives in `app/adapters/` only.
-3. **Credits are finite.** Any code path that calls Gnani APIs in bulk must
-   support `--dry-run` (prints planned call count), `--max-calls N`, and must
-   cache results on disk keyed by (audio sha256, condition id, model id).
-   Never re-spend credits on a cached result.
+3. **Credits are finite.** Billing is **Rs 27 per hour of audio** (STT) and
+   **Rs 27 per 10,000 characters** (TTS) — not per call (D-020). 1 credit = Rs 1,
+   4995 remain, and the whole project is projected at ~Rs 172. Any bulk path
+   must support `--dry-run` (prints planned calls **and estimated rupees**),
+   `--max-calls N` as a runaway guard, and must cache results on disk keyed by
+   (audio sha256, condition id, model id). Never re-spend on a cached result.
+   Every real call is metered to `scripts/out/usage.jsonl`; check with
+   `uv run python -m scripts.usage`. Limits: 60 req/min, 20 concurrent STT
+   sessions. Never hold an STT socket open while idle (it may bill wall-clock).
 4. **Synthetic data only.** Made-up customer names, no real phone numbers,
    Aadhaar, PAN, account numbers, or recorded real calls — in code, fixtures,
    corpus, logs, or demo. (Contest rule.)
@@ -82,6 +87,7 @@ uv run python -m scripts.smoke both             # 2 real API calls: Timbre TTS, 
 uv run python -m scripts.latency --dry-run      # count planned calls
 uv run python -m scripts.latency --n 5          # measure warm Gnani latency (10 real calls)
 uv run python -m scripts.wsclient               # drive /ws like the browser, no browser needed
+uv run python -m scripts.usage                  # what we have spent, against the 5000 grant
 USE_FAKES=true uv run uvicorn app.main:app      # run the whole UI with no API calls
 FAKE_LLM=true uv run uvicorn app.main:app       # real Prisma + Timbre, canned Evon
 uv run python -m eval.run_eval --dry-run        # count planned API calls
@@ -206,7 +212,7 @@ Mark tasks `[x]` as they are completed. `[human]` = Diptanu does this, not Claud
 - [x] [human] Register for the contest; read the IP/ownership terms before accepting
 - [ ] [human] Request Evon v3.3 weights on Hugging Face
 - [ ] [human] Ask on Gnani's Discord: is a hosted Evon endpoint available to participants? Does it support tool/function calling?
-- [ ] [human] Find out how credits are counted (per call / per audio-second)
+- [x] [human] Find out how credits are counted → **per audio-hour / per 10k chars** (D-020)
 - [x] Scaffold the repo, pyproject, `.env.example`, adapter Protocols, fakes
 - [x] Smoke scripts: one Prisma transcription, one Timbre synthesis (verified against docs)
 

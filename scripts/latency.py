@@ -36,6 +36,7 @@ from pathlib import Path
 from app.adapters.gnani_common import GnaniAPIError
 from app.adapters.gnani_stt import PrismaSTT
 from app.adapters.gnani_stt_stream import PrismaStreamingSTT
+from app.adapters.usage import stt_cost_inr, tts_cost_inr
 from app.adapters.gnani_tts import TimbreTTS
 from app.config import get_settings
 from scripts.smoke import DEFAULT_WAV, load_clip
@@ -157,7 +158,25 @@ def main() -> int:
 
     services = [args.only] if args.only else ["tts", "stt", "stt_stream"]
     planned = args.n * len(services)
-    print(f"Planned API calls: {planned} ({args.n} x {len(services)} service(s): {', '.join(services)})")
+
+    # Billing follows audio seconds and characters, not calls, so estimate those.
+    clip_s = 4.0
+    if args.wav.exists():
+        try:
+            info = sf.info(args.wav)
+            clip_s = info.frames / info.samplerate
+        except Exception:
+            pass
+    cost = 0.0
+    for service in services:
+        if service == "tts":
+            cost += sum(tts_cost_inr(len(TTS_TEXTS[i % len(TTS_TEXTS)])) for i in range(args.n))
+        else:
+            cost += args.n * stt_cost_inr(clip_s)
+    print(
+        f"Planned API calls: {planned} ({args.n} x {len(services)} service(s): {', '.join(services)})"
+        f"  ~Rs {cost:.2f}"
+    )
     if args.dry_run:
         return 0
     if planned > args.max_calls:

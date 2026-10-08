@@ -355,11 +355,14 @@ flowchart LR
   - telephone + loss at 1, 5, 10%
   - telephone + noise at SNR 20, 10, 5, 0 dB
   - worst case (SNR 5 dB + 5% loss)
-- **Credit budget:** about 100 utterances × 10 conditions = **about 1,000 Prisma
-  calls** for one baseline. The cache means re-scoring costs nothing. A re-run
-  only spends credits when the STT request itself changes (e.g. adding
-  `bias_list`). Every registrant gets 5,000 programme credits. How credits are
-  counted (per call or per audio-second) is still **VERIFY**.
+- **Credit budget:** billing is per *hour of audio*, not per call (D-020), so
+  100 utterances x 10 conditions x ~4 s = 1.1 hours = **about Rs 30** of the
+  4995 remaining. The disk cache means re-scoring costs nothing, and a re-run
+  only spends when the STT request itself changes (e.g. adding `bias_list`).
+  Credits are not the binding constraint here: **200 utterances across 14
+  conditions would cost Rs 84**. Size the corpus by what is convincing, and by
+  how much recording time is available. The 60 req/min limit paces the run at
+  roughly 47 minutes for 2800 requests, so the runner must throttle.
 - Task-level eval calls Evon. If Evon is self-hosted, that costs GPU time,
   not Gnani credits.
 

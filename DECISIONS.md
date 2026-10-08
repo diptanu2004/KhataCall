@@ -320,3 +320,64 @@ which is a deliberate correctness cost.
 disagreed by 7x, and the cause was neither the network nor the vendor but a
 line of our own code on the wrong side of a timer. The per-turn diagnostic log
 that found it is staying in.
+
+## D-020 — Credits are billed by audio-hour and character, not per call. They are not the binding constraint.
+- **Date:** 2026-10-08 · **Status:** Accepted (rates from the Gnani dashboard)
+- **Published rates:**
+
+| Service | Price | Unit | Limits |
+|---|---|---|---|
+| Speech to text (REST / WebSocket / batch) | Rs 27.00 | **per hour of audio** | 60 req/min; 20 concurrent WS sessions |
+| Text to speech | Rs 27.00 | **per 10,000 characters** | 60 req/min |
+
+- **1 credit = Rs 1, and billing is proportional.** Reconstructing every call
+  this session (about 28 STT calls averaging 3.8 s, and 23 TTS calls averaging
+  52 characters) gives Rs 4.03 against the 5 credits the dashboard reports
+  spent. Had each request been rounded up to a whole unit, 23 TTS calls alone
+  would have cost Rs 621. They were not.
+
+- **Unit economics:**
+  - one second of audio: **Rs 0.0075**
+  - one character of speech: **Rs 0.0027**
+  - one typical turn (4 s in, 60 characters out): **Rs 0.19**
+  - **TTS costs about 5x more per turn than STT.** The phrase cache in D-018
+    was proposed for latency; it saves credits too, and is now the bigger lever.
+
+- **The earlier framing in CLAUDE.md hard rule 3 was wrong.** It counts *calls*
+  and caps them with `--max-calls`. Calls are not the billable unit, so a cap
+  on them neither predicts nor controls spend. `--dry-run` now estimates
+  rupees from audio seconds and characters; `--max-calls` stays as a blunt
+  runaway-loop guard.
+
+- **Projected cost of the whole project: about Rs 172 of 4995 (3.4%).**
+
+| Activity | Cost |
+|---|---|
+| spent so far | 4 |
+| M2 agent development, ~150 turns | 29 |
+| M3 eval baseline, 100 utterances x 10 conditions x 4 s | 30 |
+| M3 phone-mode checks | 10 |
+| M4 two full eval re-runs | 60 |
+| M4 experiments (bias_list, ITN, hi-IN vs en-IN) | 30 |
+| M5 demo, 10 takes | 9 |
+| **total** | **~172** |
+
+- **Consequence: spend more on the eval, not less.** Credits were assumed
+  scarce; they are not. A corpus of 200 utterances across 14 conditions costs
+  Rs 84 and 47 minutes of wall clock at the 60 req/min limit. The real
+  constraints are recording time (human) and the calendar. The eval is the
+  headline deliverable, so it should be sized by what makes the result
+  convincing, not by a credit fear that the arithmetic does not support.
+
+- **Two risks the rates introduce:**
+  1. **Idle WebSocket sessions may bill wall-clock rather than audio.**
+     Unverified. Until it is, never hold an STT socket open while idle — which
+     rules out the "pre-open at page load" idea. Opening on button press, as
+     `session.py` does, is also the cheap choice.
+  2. **60 requests/minute** paces the eval. 2800 requests is 47 minutes
+     minimum; the runner must throttle rather than discover this as 429s.
+
+- **Tracking.** `app/adapters/usage.py` meters every real call to
+  `scripts/out/usage.jsonl`; `uv run python -m scripts.usage` reports spend
+  against the grant. A local meter beats checking the dashboard, and makes
+  "how much did that experiment cost" answerable after the fact.

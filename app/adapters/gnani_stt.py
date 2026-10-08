@@ -12,6 +12,7 @@ import httpx
 
 from app.adapters.base import AudioClip, Transcript
 from app.adapters.gnani_common import API_KEY_HEADER, GnaniAPIError, require_key, to_wav_bytes
+from app.adapters.usage import record_stt
 
 MAX_DURATION_S = 60.0  # documented hard limit for REST; ideal is <= 30 s
 
@@ -67,6 +68,9 @@ class PrismaSTT:
         if self._bias_list:
             data["bias_list"] = json.dumps(self._bias_list, ensure_ascii=False)
         files = {"audio_file": ("utterance.wav", to_wav_bytes(audio), "audio/wav")}
+
+        # Billed per hour of audio, so meter before the call: a failed call still used it.
+        record_stt(audio.duration_s, model=self.model_id, note="rest")
 
         start = time.perf_counter()
         response = await self._client.post(

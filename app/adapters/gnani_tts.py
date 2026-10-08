@@ -12,6 +12,7 @@ from typing import Any
 import websockets
 
 from app.adapters.gnani_common import API_KEY_HEADER, GnaniAPIError, require_key
+from app.adapters.usage import record_tts
 
 # Only Poorvi is listed for hi-en (Hinglish) in the voice catalog: https://docs.gnani.ai/api/TTS/available-voices
 DEFAULT_VOICE = "Poorvi"
@@ -61,6 +62,8 @@ class TimbreTTS:
         # One connection per utterance keeps this simple. Reusing a connection across turns
         # would save the handshake; that is an M4 latency experiment.
         headers = {API_KEY_HEADER: require_key(self._api_key)}
+        # Billed per 10,000 characters of input text, so the cost is known up front.
+        record_tts(len(text), model=self.model_id)
         async with self._connect(self._ws_url, additional_headers=headers) as ws:
             await ws.send(json.dumps(self._request(text, language, voice), ensure_ascii=False))
             leftover = b""  # chunk boundaries are not guaranteed to fall on 2-byte samples

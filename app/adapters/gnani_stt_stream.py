@@ -41,6 +41,7 @@ import websockets
 
 from app.adapters.base import AudioClip, Transcript
 from app.adapters.gnani_common import GnaniAPIError, require_key
+from app.adapters.usage import record_stt
 
 FRAME_BYTES = 1024
 FRAME_SAMPLES = FRAME_BYTES // 2  # 512, per the docs
@@ -161,6 +162,13 @@ class LiveTranscription:
             await self._send_frame(bytes(self._buffer).ljust(FRAME_BYTES, b"\0"))
             self._buffer.clear()
         self._t.speech_end_at = time.perf_counter()
+        # Billed per hour of audio. Count everything streamed, padding included: the
+        # server received it. Metered here so a later timeout still records the spend.
+        record_stt(
+            self.frames_sent * FRAME_SAMPLES / self._sample_rate,
+            model="prisma-v2.5-stream",
+            note="stream",
+        )
 
         padding = bytes(2 * (self._sample_rate * self._padding_ms // 1000))
         interval = FRAME_SAMPLES / self._sample_rate
