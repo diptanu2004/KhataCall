@@ -310,27 +310,78 @@ def load_config() -> dict:
 # --- capture ---------------------------------------------------------------
 
 
+def capture_settings(device: int | None) -> tuple[int, int]:
+    """A (sample_rate, channels) the device will actually open.
+
+    WASAPI refuses anything but the device's native rate, so asking for 16 kHz on a
+    48 kHz mic fails outright with "Invalid sample rate". MME and DirectSound hide
+    that by resampling internally. We capture native and resample ourselves, which
+    works on every host API and gives a better filter than the driver's.
+    """
+    sd = _sounddevice()
+    rates: list[int] = []
+    channel_options = [1, 2]
+    try:
+        info = sd.query_devices(device, "input") if device is not None else sd.query_devices(kind="input")
+        rates.append(int(info["default_samplerate"]))
+        channel_options = [1, int(info["max_input_channels"])]
+    except Exception:
+        pass
+    rates += [SAMPLE_RATE, 48_000, 44_100, 32_000]
+
+    tried: set[tuple[int, int]] = set()
+    for channels in channel_options:
+        for rate in rates:
+            if channels < 1 or (rate, channels) in tried:
+                continue
+            tried.add((rate, channels))
+            try:
+                sd.check_input_settings(device=device, channels=channels, dtype="float32", samplerate=rate)
+                return rate, channels
+            except Exception:
+                continue
+    raise SystemExit(
+        "This device would not open at any sample rate we tried. "
+        "Pick another with: uv run python -m scripts.calibrate --list"
+    )
+
+
+def to_mono_16k(audio: np.ndarray, rate: int, channels: int) -> np.ndarray:
+    """Downmix to mono and resample to the corpus rate."""
+    if channels > 1:
+        audio = audio.reshape(-1, channels).mean(axis=1)
+    audio = audio.ravel()
+    if rate == SAMPLE_RATE or audio.size == 0:
+        return audio.astype("float32")
+    from scipy.signal import resample_poly
+
+    divisor = math.gcd(int(rate), SAMPLE_RATE)
+    return resample_poly(audio, SAMPLE_RATE // divisor, int(rate) // divisor).astype("float32")
+
+
 def record_seconds(seconds: float, device: int | None) -> np.ndarray:
     sd = _sounddevice()
-    audio = sd.rec(
-        int(seconds * SAMPLE_RATE), samplerate=SAMPLE_RATE, channels=1, dtype="float32", device=device
-    )
+    rate, channels = capture_settings(device)
+    audio = sd.rec(int(seconds * rate), samplerate=rate, channels=channels, dtype="float32", device=device)
     sd.wait()
-    return audio.ravel()
+    return to_mono_16k(audio, rate, channels)
 
 
 def record_until_enter(prompt: str, device: int | None) -> np.ndarray:
     sd = _sounddevice()
+    rate, channels = capture_settings(device)
     chunks: list[np.ndarray] = []
     with sd.InputStream(
-        samplerate=SAMPLE_RATE,
-        channels=1,
+        samplerate=rate,
+        channels=channels,
         dtype="float32",
         device=device,
         callback=lambda indata, *_: chunks.append(indata.copy()),
     ):
         input(prompt)
-    return np.concatenate(chunks).ravel() if chunks else np.zeros(0, dtype="float32")
+    if not chunks:
+        return np.zeros(0, dtype="float32")
+    return to_mono_16k(np.concatenate(chunks), rate, channels)
 
 
 def countdown(seconds: float) -> None:
@@ -343,7 +394,8 @@ def countdown(seconds: float) -> None:
 def monitor(device: int | None) -> int:
     """Live level meter, so the mic can be positioned before any take."""
     sd = _sounddevice()
-    print("Live level meter. Speak normally. Ctrl+C to stop.\n")
+    rate, channels = capture_settings(device)
+    print(f"Live level meter ({rate} Hz, {channels} ch). Speak normally. Ctrl+C to stop.\n")
     width = 44
 
     def show(indata, *_):
@@ -364,7 +416,7 @@ def monitor(device: int | None) -> int:
 
     try:
         with sd.InputStream(
-            samplerate=SAMPLE_RATE, channels=1, dtype="float32", device=device, callback=show
+            samplerate=rate, channels=channels, dtype="float32", device=device, callback=show
         ):
             while True:
                 time.sleep(0.1)

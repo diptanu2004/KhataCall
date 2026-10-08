@@ -11,6 +11,7 @@ import math
 import numpy as np
 import pytest
 
+import scripts.calibrate as cal
 from scripts.calibrate import (
     Reading,
     active_speech_rms,
@@ -162,3 +163,92 @@ def test_a_real_spoken_take_passes():
 def test_snr_is_never_rendered_as_minus_zero():
     notes, _ = verdicts(good_reading(noise_dbfs=-18.4, speech_rms_dbfs=-18.0))
     assert not any("-0 dB" in n for n in notes)
+
+
+# --- capture settings ------------------------------------------------------
+# WASAPI refuses any rate but the device's native one ("Invalid sample rate"),
+# while MME and DirectSound quietly resample. Asking for 16 kHz on a 48 kHz mic
+# therefore crashed on the better device and worked on the worse one. We now
+# capture native and resample ourselves.
+
+
+class FakeSoundDevice:
+    def __init__(self, *, accepts, default_rate, max_channels=2):
+        self.accepts = accepts  # set of (rate, channels) the driver will open
+        self.default_rate = default_rate
+        self.max_channels = max_channels
+        self.checked: list[tuple[int, int]] = []
+
+    def query_devices(self, device=None, kind=None):
+        return {"default_samplerate": self.default_rate, "max_input_channels": self.max_channels}
+
+    def check_input_settings(self, device=None, channels=None, dtype=None, samplerate=None):
+        self.checked.append((samplerate, channels))
+        if (samplerate, channels) not in self.accepts:
+            raise RuntimeError("Invalid sample rate")
+
+
+@pytest.fixture
+def fake_sd(monkeypatch):
+    def install(sd):
+        monkeypatch.setattr(cal, "_sounddevice", lambda: sd)
+        return sd
+
+    return install
+
+
+def test_native_rate_is_preferred_over_the_target_rate(fake_sd):
+    """A 48 kHz WASAPI device must be opened at 48 kHz, not 16 kHz."""
+    sd = fake_sd(FakeSoundDevice(accepts={(48_000, 1)}, default_rate=48_000))
+    assert cal.capture_settings(9) == (48_000, 1)
+    assert sd.checked[0] == (48_000, 1), "should try the device's native rate first"
+
+
+def test_falls_back_through_common_rates(fake_sd):
+    fake_sd(FakeSoundDevice(accepts={(44_100, 1)}, default_rate=96_000))
+    assert cal.capture_settings(0) == (44_100, 1)
+
+
+def test_falls_back_to_stereo_when_mono_is_refused(fake_sd):
+    """Some mic arrays will not open as a single channel."""
+    fake_sd(FakeSoundDevice(accepts={(48_000, 2)}, default_rate=48_000))
+    assert cal.capture_settings(0) == (48_000, 2)
+
+
+def test_a_device_that_opens_at_nothing_fails_with_advice(fake_sd):
+    fake_sd(FakeSoundDevice(accepts=set(), default_rate=48_000))
+    with pytest.raises(SystemExit, match="--list"):
+        cal.capture_settings(0)
+
+
+# --- resampling and downmix ------------------------------------------------
+
+
+@pytest.mark.parametrize("rate", [48_000, 44_100, 32_000, 16_000])
+def test_one_second_becomes_one_second_at_16k(rate):
+    assert cal.to_mono_16k(np.zeros(rate, dtype="float32"), rate, 1).size == 16_000
+
+
+def test_stereo_is_averaged_to_mono():
+    stereo = np.array([[1.0, 0.0]] * 1000, dtype="float32")
+    mono = cal.to_mono_16k(stereo, 16_000, 2)
+    assert mono.size == 1000
+    assert mono[0] == pytest.approx(0.5)
+
+
+def test_resampling_preserves_a_tone_rather_than_aliasing_it():
+    """A 300 Hz tone is well inside the 8 kHz Nyquist limit, so it must survive."""
+    rate = 48_000
+    t = np.linspace(0, 1, rate, endpoint=False)
+    tone = (0.5 * np.sin(2 * np.pi * 300 * t)).astype("float32")
+
+    out = cal.to_mono_16k(tone, rate, 1)
+
+    spectrum = np.abs(np.fft.rfft(out))
+    peak_hz = np.fft.rfftfreq(out.size, 1 / 16_000)[spectrum.argmax()]
+    assert peak_hz == pytest.approx(300, abs=2)
+    assert cal.rms(out) == pytest.approx(cal.rms(tone), rel=0.02)
+
+
+def test_empty_capture_does_not_blow_up():
+    assert cal.to_mono_16k(np.zeros(0, dtype="float32"), 48_000, 1).size == 0

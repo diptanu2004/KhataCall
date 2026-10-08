@@ -30,7 +30,7 @@ from pathlib import Path
 
 import numpy as np
 
-from scripts.calibrate import dbfs, load_config
+from scripts.calibrate import dbfs, load_config, record_until_enter
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_CSV = ROOT / "eval" / "corpus" / "scripts.csv"
@@ -40,30 +40,6 @@ NOISE_DIR = ROOT / "eval" / "noise"
 SAMPLE_RATE = 16_000  # what the browser sends, and what Prisma takes natively
 CLIP_CEILING = 0.98  # fraction of full scale that counts as clipped
 QUIET_RMS = 0.01  # below this the take is probably unusable
-
-
-def _sounddevice():
-    try:
-        import sounddevice
-    except OSError as e:  # PortAudio missing
-        raise SystemExit(f"Could not load the audio backend: {e}") from e
-    return sounddevice
-
-
-def record_until_enter(prompt: str, device: int | None) -> np.ndarray:
-    sd = _sounddevice()
-    chunks: list[np.ndarray] = []
-
-    def callback(indata, frames, time_info, status):
-        if status:
-            print(f"  (audio status: {status})", file=sys.stderr)
-        chunks.append(indata.copy())
-
-    with sd.InputStream(
-        samplerate=SAMPLE_RATE, channels=1, dtype="float32", device=device, callback=callback
-    ):
-        input(prompt)
-    return np.concatenate(chunks).ravel() if chunks else np.zeros(0, dtype="float32")
 
 
 def describe(audio: np.ndarray) -> tuple[str, bool]:
