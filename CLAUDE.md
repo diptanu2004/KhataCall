@@ -90,6 +90,7 @@ uv run python -m scripts.wsclient               # drive /ws like the browser, no
 uv run python -m scripts.usage                  # what we have spent, against the 5000 grant
 uv run python -m scripts.calibrate              # pick the mic, check the room is quiet enough
 uv run python -m scripts.record                 # record the eval corpus (no API calls)
+uv run python -m scripts.check_corpus           # verify the recordings before trusting them
 USE_FAKES=true uv run uvicorn app.main:app      # run the whole UI with no API calls
 FAKE_LLM=true uv run uvicorn app.main:app       # real Prisma + Timbre, canned Evon
 uv run python -m eval.run_eval --dry-run        # count planned API calls
@@ -230,7 +231,8 @@ Mark tasks `[x]` as they are completed. `[human]` = Diptanu does this, not Claud
 - [x] Per-stage latency timing, sent to the client
 - [x] ~~Write~~ **180** synthetic utterances in `scripts.csv` (drafted; review the phrasing)
 - [ ] [human] Calibrate the mic once: `uv run python -m scripts.calibrate`
-- [ ] [human] Record them: `uv run python -m scripts.record --speaker a` (quiet room, 1-3 voices)
+- [x] Speaker a recorded: 60 takes, median SNR 64 dB, no problems (D-022)
+- [ ] [human] Speakers b and c: `uv run python -m scripts.record --speaker b` (120 lines left)
 - [ ] [human] Record 2-3 min of shop noise: `uv run python -m scripts.record --noise`
 
 **Done when:** speaking a Hinglish sentence produces a spoken Hinglish reply in the browser.

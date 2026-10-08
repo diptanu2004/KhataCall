@@ -408,3 +408,43 @@ that found it is staying in.
   recordings and refuse, or at least flag, any whose measured noise floor would
   contaminate the conditions. Calibration catches the setup; it cannot catch a
   lorry going past during take 94.
+
+## D-022 — Speaker a's 60 takes pass; the capture has a noise gate, and that is fine
+- **Date:** 2026-10-09 · **Status:** Accepted (measured)
+- **Checked with** `scripts/check_corpus.py`, 60 takes, Realtek mic array via
+  WASAPI at 48 kHz resampled to 16 kHz.
+
+| | |
+|---|---|
+| duration | median 3.9 s, range 2.4-5.8 s, 3.8 min total |
+| peak | median -13.5 dBFS, range -19 to -8 |
+| SNR | **median 64 dB**, worst 52 |
+| problems found | none |
+
+- **The source is far cleaner than the eval needs.** 64 dB leaves 44 dB of
+  margin over the harshest condition (20 dB SNR), so what the eval measures is
+  the noise it adds, not the room.
+
+- **Every take is noise-gated**, 9.8% of frames zeroed outright (median; range
+  6.6-16.1%). This is Windows voice processing on the Realtek array, not our
+  code. Two consequences:
+  1. **The first SNR measurement was nonsense: 166 dB.** Averaging digitally
+     silent frames into a noise floor measures the absence of a measurement.
+     `check_corpus.py` now takes the floor from the quietest *non-zero* frames,
+     which gives the real 64 dB.
+  2. **The gate never touched a word.** Of 1141 zeroed frames across the 60
+     takes, **0 fall between the first and last word of any utterance** — all
+     of it is the silence either side. A gate that ate a soft fricative or a
+     quiet word ending would show up later as a transcription error and be
+     blamed on the telephone channel. It did not happen, and
+     `check_corpus.py` now checks for it on every take.
+
+- **Keep the processing on for speakers b and c.** Consistency across the
+  corpus matters more than raw capture: a corpus where a third of the takes
+  went through different processing would confound speaker with condition, and
+  the per-speaker breakdown would be uninterpretable.
+
+- **Cost confirmed.** 3.8 minutes of audio is **Rs 1.73 per condition**, so a
+  10-condition baseline over speaker a's share is **Rs 17**. The full
+  180-utterance corpus will be roughly three times that. This is consistent
+  with D-020: credits are not the constraint.
