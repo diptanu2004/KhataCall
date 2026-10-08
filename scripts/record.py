@@ -108,8 +108,7 @@ def calibrated_device() -> int | None:
     config = load_config()
     if not config:
         print("No mic calibration found. Run this first, it takes a minute:")
-        print("    uv run python -m scripts.calibrate
-")
+        print("    uv run python -m scripts.calibrate\n")
         if input("Carry on with the system default anyway? [y/N] > ").strip().lower() != "y":
             raise SystemExit(0)
         return None
