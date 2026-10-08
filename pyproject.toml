@@ -22,6 +22,8 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=8.3",
+    # Microphone capture for scripts/record.py (corpus recording only).
+    "sounddevice>=0.5",
 ]
 
 [tool.uv]

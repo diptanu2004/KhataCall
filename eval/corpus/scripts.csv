@@ -1,1 +1,181 @@
 id,text,intent,customer,amount_paise,item,qty,speaker
+001,Sharma ji ka dedh sau udhaar likho,add_credit,Sharma,15000,,,a
+002,Gupta aunty ke khate mein dhai sau likh do,add_credit,Gupta,25000,,,b
+003,Verma bhaiya ka sava sau udhaar,add_credit,Verma,12500,,,c
+004,Yadav ji ka saadhe teen sau likho,add_credit,Yadav,35000,,,a
+005,Mishra ji ka paune do sau udhaar likh do,add_credit,Mishra,17500,,,b
+006,Pandey ji ke naam sava do sau likho,add_credit,Pandey,22500,,,c
+007,Tiwari didi ka saadhe char sau udhaar,add_credit,Tiwari,45000,,,a
+008,Joshi uncle ka paune teen sau likh do,add_credit,Joshi,27500,,,b
+009,Rawat ji ka dedh hazaar udhaar likho,add_credit,Rawat,150000,,,c
+010,Chauhan bhai ka dhai hazaar likh do,add_credit,Chauhan,250000,,,a
+011,Saini ji ka sava hazaar udhaar,add_credit,Saini,125000,,,b
+012,Bansal ji ka saadhe paanch sau likho,add_credit,Bansal,55000,,,c
+013,Sethi aunty ka paune do hazaar udhaar likh do,add_credit,Sethi,175000,,,a
+014,Khanna ji ka saadhe saat sau likho,add_credit,Khanna,75000,,,b
+015,Dubey ji ka sava paanch sau udhaar,add_credit,Dubey,52500,,,c
+016,Thakur ji ka pachpan rupaye udhaar likho,add_credit,Thakur,5500,,,a
+017,Negi bhaiya ka untees rupaye likh do,add_credit,Negi,2900,,,b
+018,Bisht ji ka chhiyaasi rupaye udhaar,add_credit,Bisht,8600,,,c
+019,Goyal ji ka sattar rupaye likho,add_credit,Goyal,7000,,,a
+020,Malhotra ji ka ninyaanve rupaye udhaar likh do,add_credit,Malhotra,9900,,,b
+021,Ahuja ji ka pandrah rupaye likho,add_credit,Ahuja,1500,,,c
+022,Kashyap bhai ka athhattar rupaye udhaar,add_credit,Kashyap,7800,,,a
+023,Nigam ji ka chauvan rupaye likh do,add_credit,Nigam,5400,,,b
+024,Rastogi ji ka ikyaavan rupaye udhaar likho,add_credit,Rastogi,5100,,,c
+025,Bhatia aunty ka tirsath rupaye likho,add_credit,Bhatia,6300,,,a
+026,Dhiman ji ka chaalees rupaye udhaar,add_credit,Dhiman,4000,,,b
+027,Sharma ji ka assi rupaye likh do,add_credit,Sharma,8000,,,c
+028,Verma ji ka nabbe rupaye udhaar likho,add_credit,Verma,9000,,,a
+029,Gupta ji ka pachhattar rupaye likho,add_credit,Gupta,7500,,,b
+030,Yadav bhaiya ka chaubees rupaye udhaar,add_credit,Yadav,2400,,,c
+031,Mishra ji ka do hazaar paanch sau udhaar likho,add_credit,Mishra,250000,,,a
+032,Pandey ji ka ek hazaar teen sau likh do,add_credit,Pandey,130000,,,b
+033,Tiwari ji ka 2 hazaar 500 udhaar,add_credit,Tiwari,250000,,,c
+034,Joshi ji ka teen sau pachaas likho,add_credit,Joshi,35000,,,a
+035,Rawat bhaiya ka char sau bees udhaar likh do,add_credit,Rawat,42000,,,b
+036,Chauhan ji ka paanch sau saath likho,add_credit,Chauhan,56000,,,c
+037,Saini aunty ka chhe sau pachchees udhaar,add_credit,Saini,62500,,,a
+038,Bansal ji ka saat sau assi likh do,add_credit,Bansal,78000,,,b
+039,Sethi ji ka aath sau pandrah udhaar likho,add_credit,Sethi,81500,,,c
+040,Khanna bhai ka nau sau chaalees likho,add_credit,Khanna,94000,,,a
+041,Dubey ji ka 150 rupaye udhaar likh do,add_credit,Dubey,15000,,,b
+042,Thakur ji ka 1250 ka udhaar likho,add_credit,Thakur,125000,,,c
+043,Negi ji ka solah sau udhaar,add_credit,Negi,160000,,,a
+044,Bisht bhaiya ka barah sau pachaas likh do,add_credit,Bisht,125000,,,b
+045,Goyal ji ka teen hazaar udhaar likho,add_credit,Goyal,300000,,,c
+046,Malhotra ji ka two hundred rupees udhaar likho,add_credit,Malhotra,20000,,,a
+047,Ahuja ji ka five hundred likh do,add_credit,Ahuja,50000,,,b
+048,Kashyap ji ka thousand rupaye ka udhaar,add_credit,Kashyap,100000,,,c
+049,Nigam bhaiya ka fifty rupees udhaar likho,add_credit,Nigam,5000,,,a
+050,Rastogi ji ka one fifty likh do,add_credit,Rastogi,15000,,,b
+051,Bhatia ji ka two fifty ka udhaar likho,add_credit,Bhatia,25000,,,c
+052,Dhiman bhai ka hundred rupaye likh do,add_credit,Dhiman,10000,,,a
+053,"Chauhan ji ka shaadi ka order, pachhattar hazaar likho",add_credit,Chauhan,7500000,,,b
+054,Saini ji ka ek lakh ka udhaar likh do,add_credit,Saini,10000000,,,c
+055,Bansal ji ka pachaas hazaar udhaar likho,add_credit,Bansal,5000000,,,a
+056,Sethi ji ka pachchees hazaar likh do,add_credit,Sethi,2500000,,,b
+057,Khanna ji ka das hazaar ka udhaar,add_credit,Khanna,1000000,,,c
+058,Sharma ji ke khate mein do sau jod do,add_credit,Sharma,20000,,,a
+059,"Gupta aunty ka aaj ka saamaan teen sau ka, udhaar likh dena",add_credit,Gupta,30000,,,b
+060,Verma bhaiya ka char sau ka udhaar chadha do,add_credit,Verma,40000,,,c
+061,Verma bhaiya ne saadhe teen sau diye,record_payment,Verma,35000,,,a
+062,Sharma ji ne do sau rupaye jama kiye,record_payment,Sharma,20000,,,b
+063,Gupta aunty ne paanch sau de diye,record_payment,Gupta,50000,,,c
+064,Rawat ji ne teen sau wapas kiye,record_payment,Rawat,30000,,,a
+065,Chauhan bhai ne dedh sau de diye,record_payment,Chauhan,15000,,,b
+066,Mishra ji ne dhai sau jama kiye,record_payment,Mishra,25000,,,c
+067,Pandey ji ne sava sau diye,record_payment,Pandey,12500,,,a
+068,Tiwari didi ne paune do sau wapas kiye,record_payment,Tiwari,17500,,,b
+069,Joshi uncle ne saadhe char sau de diye,record_payment,Joshi,45000,,,c
+070,Yadav ji ne ek hazaar jama kiya,record_payment,Yadav,100000,,,a
+071,Saini ji ne pachaas rupaye diye,record_payment,Saini,5000,,,b
+072,Bansal ji ne pachhattar rupaye wapas kiye,record_payment,Bansal,7500,,,c
+073,Sethi aunty ne saath rupaye de diye,record_payment,Sethi,6000,,,a
+074,Khanna ji ne nabbe rupaye jama kiye,record_payment,Khanna,9000,,,b
+075,Dubey bhaiya ne chaalees rupaye diye,record_payment,Dubey,4000,,,c
+076,Thakur ji ne do hazaar paanch sau jama kiye,record_payment,Thakur,250000,,,a
+077,Negi ji ne 500 rupaye de diye,record_payment,Negi,50000,,,b
+078,Bisht ji ne teen sau pachaas wapas kiye,record_payment,Bisht,35000,,,c
+079,Goyal bhai ne char sau diye,record_payment,Goyal,40000,,,a
+080,Malhotra ji ne saadhe paanch sau jama kiye,record_payment,Malhotra,55000,,,b
+081,Ahuja ji ne dedh hazaar de diye,record_payment,Ahuja,150000,,,c
+082,Kashyap ji ne pachchees rupaye diye,record_payment,Kashyap,2500,,,a
+083,Nigam ji ne ikkees rupaye wapas kiye,record_payment,Nigam,2100,,,b
+084,Rastogi aunty ne satrah rupaye de diye,record_payment,Rastogi,1700,,,c
+085,Bhatia ji ne bahattar rupaye jama kiye,record_payment,Bhatia,7200,,,a
+086,Dhiman ji ne chhiyaalees rupaye diye,record_payment,Dhiman,4600,,,b
+087,"Sharma ji ka hisaab chukta, aath sau mile",record_payment,Sharma,80000,,,c
+088,"Gupta ji ne poora paisa de diya, barah sau",record_payment,Gupta,120000,,,a
+089,"Verma ji ne aadha de diya, teen sau",record_payment,Verma,30000,,,b
+090,Yadav bhaiya ne two hundred diye,record_payment,Yadav,20000,,,c
+091,Joshi ji ne thousand rupees jama kiye,record_payment,Joshi,100000,,,a
+092,Mishra ji ne fifty rupaye de diye,record_payment,Mishra,5000,,,b
+093,Pandey ji ne dhai hazaar wapas kiye,record_payment,Pandey,250000,,,c
+094,Tiwari ji ne sava hazaar jama kiye,record_payment,Tiwari,125000,,,a
+095,Rawat ji ne chaubees rupaye diye,record_payment,Rawat,2400,,,b
+096,Chauhan ji ne pachpan rupaye de diye,record_payment,Chauhan,5500,,,c
+097,Saini bhai ne untees rupaye wapas kiye,record_payment,Saini,2900,,,a
+098,Bansal ji ne chhiyaasi rupaye jama kiye,record_payment,Bansal,8600,,,b
+099,Sethi ji ne ninyaanve rupaye diye,record_payment,Sethi,9900,,,c
+100,Khanna aunty ne sattar rupaye de diye,record_payment,Khanna,7000,,,a
+101,Dubey ji ne paune teen sau jama kiye,record_payment,Dubey,27500,,,b
+102,Thakur bhaiya ne saadhe saat sau diye,record_payment,Thakur,75000,,,c
+103,Negi ji ne solah sau wapas kiye,record_payment,Negi,160000,,,a
+104,Bisht ji ne das hazaar jama kiye,record_payment,Bisht,1000000,,,b
+105,Goyal ji ne 2 hazaar 500 de diye,record_payment,Goyal,250000,,,c
+106,Sharma ji ka kitna baaki hai,get_balance,Sharma,,,,a
+107,Gupta aunty ka hisaab batao,get_balance,Gupta,,,,b
+108,Verma bhaiya ke khate mein kitna hai,get_balance,Verma,,,,c
+109,Mishra ji ka balance kya hai,get_balance,Mishra,,,,a
+110,Yadav ji ka kitna udhaar hai,get_balance,Yadav,,,,b
+111,Pandey ji ka khata dikhao,get_balance,Pandey,,,,c
+112,Tiwari didi ka kitna bakaya hai,get_balance,Tiwari,,,,a
+113,Joshi uncle ka hisaab kya hai,get_balance,Joshi,,,,b
+114,Rawat ji ko kitna dena hai,get_balance,Rawat,,,,c
+115,Chauhan bhai ka kitna chadha hai,get_balance,Chauhan,,,,a
+116,Saini ji ka total kitna hua,get_balance,Saini,,,,b
+117,Bansal ji ka khata check karo,get_balance,Bansal,,,,c
+118,Sethi aunty ka kitna baaki,get_balance,Sethi,,,,a
+119,Khanna ji ka udhaar kitna hai,get_balance,Khanna,,,,b
+120,Dubey ji ka hisaab bata do,get_balance,Dubey,,,,c
+121,Thakur ji ke naam kitna hai,get_balance,Thakur,,,,a
+122,Negi bhaiya ka balance batao,get_balance,Negi,,,,b
+123,Bisht ji ka kitna baaki nikal raha hai,get_balance,Bisht,,,,c
+124,Goyal ji ka khata kholo,get_balance,Goyal,,,,a
+125,Malhotra ji ka kitna paisa baaki hai,get_balance,Malhotra,,,,b
+126,Ahuja ji ka hisaab,get_balance,Ahuja,,,,c
+127,Kashyap bhai ka kitna hai,get_balance,Kashyap,,,,a
+128,Nigam ji ka bakaya batao,get_balance,Nigam,,,,b
+129,Rastogi ji ke khate mein kya chal raha hai,get_balance,Rastogi,,,,c
+130,Bhatia aunty ka kitna due hai,get_balance,Bhatia,,,,a
+131,Parle-G ke bees packet aaye,update_stock,,,Parle-G,20,b
+132,Maggi ke das packet bik gaye,update_stock,,,Maggi,-10,c
+133,chini ke paanch kilo aaye,update_stock,,,chini,5,a
+134,Lays ke pandrah packet aa gaye,update_stock,,,Lays,15,b
+135,Thums Up ki barah bottle aayi,update_stock,,,Thums Up,12,c
+136,chawal ke pachchees kilo aaye,update_stock,,,chawal,25,a
+137,atta ke das kilo nikal gaye,update_stock,,,atta,-10,b
+138,tel ke paanch litre aaye,update_stock,,,tel,5,c
+139,sabun ke tees packet aaye,update_stock,,,sabun,30,a
+140,Surf ke aath packet bik gaye,update_stock,,,Surf,-8,b
+141,chai patti ke chaalees packet aaye,update_stock,,,chai patti,40,c
+142,namak ke bees packet aa gaye,update_stock,,,namak,20,a
+143,Colgate ke pandrah tube aaye,update_stock,,,Colgate,15,b
+144,biscuit ke sau packet aaye,update_stock,,,biscuit,100,c
+145,doodh ke paanch packet bik gaye,update_stock,,,doodh,-5,a
+146,Amul butter ke das pack aaye,update_stock,,,Amul butter,10,b
+147,agarbatti ke pachaas packet aaye,update_stock,,,agarbatti,50,c
+148,mombatti ke terah packet bik gaye,update_stock,,,mombatti,-13,a
+149,haldi ke saat packet aaye,update_stock,,,haldi,7,b
+150,mirch ke nau packet aa gaye,update_stock,,,mirch,9,c
+151,besan ke char kilo aaye,update_stock,,,besan,4,a
+152,poha ke chhe kilo bik gaye,update_stock,,,poha,-6,b
+153,sooji ke aath kilo aaye,update_stock,,,sooji,8,c
+154,Bournvita ke paanch jar aaye,update_stock,,,Bournvita,5,a
+155,shampoo ke saath sachet aaye,update_stock,,,shampoo,60,b
+156,Vim bar ke pachchees piece aaye,update_stock,,,Vim bar,25,c
+157,Harpic ki teen bottle bik gayi,update_stock,,,Harpic,-3,a
+158,Dettol ke dedh darjan aaye,update_stock,,,Dettol,18,b
+159,maida ke do bori aaye,update_stock,,,maida,2,c
+160,chini ke saadhe teen kilo bik gaye,update_stock,,,chini,-3.5,a
+161,Maggi kitni bachi hai,get_stock,,,Maggi,,b
+162,chini ka stock kitna hai,get_stock,,,chini,,c
+163,Parle-G kitne packet hain,get_stock,,,Parle-G,,a
+164,atta kitna bacha hai,get_stock,,,atta,,b
+165,Lays kitne packet hain,get_stock,,,Lays,,c
+166,tel kitna bacha,get_stock,,,tel,,a
+167,chawal ka stock dikhao,get_stock,,,chawal,,b
+168,doodh kitne packet hain,get_stock,,,doodh,,c
+169,Colgate kitne tube bache hain,get_stock,,,Colgate,,a
+170,namak kitna hai,get_stock,,,namak,,b
+171,chai patti ka stock batao,get_stock,,,chai patti,,c
+172,biscuit kitne hain,get_stock,,,biscuit,,a
+173,kya kya khatam hone wala hai,list_low_stock,,,,,b
+174,paanch se kam kya kya hai,list_low_stock,,,,5,c
+175,kaun sa saamaan kam hai,list_low_stock,,,,,a
+176,stock mein kya kam pad raha hai,list_low_stock,,,,,b
+177,das se kam kaun sa item hai,list_low_stock,,,,10,c
+178,kya kya mangwana hai,list_low_stock,,,,,a
+179,khatam hone wale saamaan ki list do,list_low_stock,,,,,b
+180,bees se kam kya hai,list_low_stock,,,,20,c

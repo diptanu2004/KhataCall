@@ -88,6 +88,7 @@ uv run python -m scripts.latency --dry-run      # count planned calls
 uv run python -m scripts.latency --n 5          # measure warm Gnani latency (10 real calls)
 uv run python -m scripts.wsclient               # drive /ws like the browser, no browser needed
 uv run python -m scripts.usage                  # what we have spent, against the 5000 grant
+uv run python -m scripts.record                 # record the eval corpus (no API calls)
 USE_FAKES=true uv run uvicorn app.main:app      # run the whole UI with no API calls
 FAKE_LLM=true uv run uvicorn app.main:app       # real Prisma + Timbre, canned Evon
 uv run python -m eval.run_eval --dry-run        # count planned API calls
@@ -226,7 +227,9 @@ Mark tasks `[x]` as they are completed. `[human]` = Diptanu does this, not Claud
 - [x] `/ws` endpoint + session state machine (no tools yet; plain replies)
 - [x] `index.html`: push-to-talk, transcript, agent text, audio playback
 - [x] Per-stage latency timing, sent to the client
-- [ ] [human] Write ~100 synthetic utterances into `scripts.csv`; start recording (self + 1–2 friends)
+- [x] ~~Write~~ **180** synthetic utterances in `scripts.csv` (drafted; review the phrasing)
+- [ ] [human] Record them: `uv run python -m scripts.record --speaker a` (quiet room, 1-3 voices)
+- [ ] [human] Record 2-3 min of shop noise: `uv run python -m scripts.record --noise`
 
 **Done when:** speaking a Hinglish sentence produces a spoken Hinglish reply in the browser.
 ✅ Working Oct 8 with real Prisma + real Timbre and canned Evon replies
