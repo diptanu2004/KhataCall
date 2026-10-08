@@ -6,6 +6,9 @@
     uv run python -m scripts.record --noise         # ambient noise for eval/noise/
     uv run python -m scripts.record --list-devices
 
+Run `uv run python -m scripts.calibrate` first: it picks the input device,
+checks the room is quiet enough, and saves the choice for this script.
+
 Press Enter to start a take, Enter again to stop. The take is checked for
 clipping and for being too quiet, then you can keep it or redo it. Already
 recorded lines are skipped, so the session can be stopped and resumed.
@@ -27,6 +30,8 @@ from pathlib import Path
 
 import numpy as np
 
+from scripts.calibrate import dbfs, load_config
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_CSV = ROOT / "eval" / "corpus" / "scripts.csv"
 AUDIO_DIR = ROOT / "eval" / "corpus" / "audio"
@@ -45,7 +50,7 @@ def _sounddevice():
     return sounddevice
 
 
-def record_until_enter(prompt: str) -> np.ndarray:
+def record_until_enter(prompt: str, device: int | None) -> np.ndarray:
     sd = _sounddevice()
     chunks: list[np.ndarray] = []
 
@@ -54,7 +59,9 @@ def record_until_enter(prompt: str) -> np.ndarray:
             print(f"  (audio status: {status})", file=sys.stderr)
         chunks.append(indata.copy())
 
-    with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="float32", callback=callback):
+    with sd.InputStream(
+        samplerate=SAMPLE_RATE, channels=1, dtype="float32", device=device, callback=callback
+    ):
         input(prompt)
     return np.concatenate(chunks).ravel() if chunks else np.zeros(0, dtype="float32")
 
@@ -77,7 +84,7 @@ def describe(audio: np.ndarray) -> tuple[str, bool]:
     if seconds < 0.4:
         notes.append("very short - did it cut off?")
         ok = False
-    verdict = f"{seconds:.1f}s  peak {peak:.2f}  rms {rms:.3f}"
+    verdict = f"{seconds:.1f}s  peak {dbfs(peak):5.1f} dBFS  rms {dbfs(rms):5.1f} dBFS"
     return verdict + ("  <- " + "; ".join(notes) if notes else "  ok"), ok
 
 
@@ -91,7 +98,7 @@ def save(audio: np.ndarray, path: Path) -> None:
         w.writeframes(pcm.tobytes())
 
 
-def take_until_happy(label: str, text: str, out: Path) -> bool:
+def take_until_happy(label: str, text: str, out: Path, device: int | None = None) -> bool:
     """Record, review, redo. Returns False if the user wants to quit."""
     while True:
         print(f"\n{label}  {text}")
@@ -101,7 +108,7 @@ def take_until_happy(label: str, text: str, out: Path) -> bool:
         if choice == "s":
             return True
 
-        audio = record_until_enter("  recording... Enter to stop > ")
+        audio = record_until_enter("  recording... Enter to stop > ", device)
         verdict, ok = describe(audio)
         print(f"  {verdict}")
         if not ok:
@@ -119,6 +126,20 @@ def take_until_happy(label: str, text: str, out: Path) -> bool:
         save(audio, out)
         print(f"  saved {out.name}")
         return True
+
+
+def calibrated_device() -> int | None:
+    config = load_config()
+    if not config:
+        print("No mic calibration found. Run this first, it takes a minute:")
+        print("    uv run python -m scripts.calibrate
+")
+        if input("Carry on with the system default anyway? [y/N] > ").strip().lower() != "y":
+            raise SystemExit(0)
+        return None
+    name = config.get("device_name") or "system default"
+    print(f"Using {name}  (noise floor {config.get('noise_floor_dbfs')} dBFS, SNR {config.get('snr_db')} dB)")
+    return config.get("device")
 
 
 def record_corpus(args) -> int:
@@ -144,10 +165,11 @@ def record_corpus(args) -> int:
         print("Nothing to record.")
         return 0
     print("Read each line naturally, as you would say it in a shop. Quiet room, no background music.")
+    device = calibrated_device()
 
     for n, row in enumerate(todo, start=1):
         label = f"[{n}/{len(todo)}] {row['id']} ({row['intent']}, speaker {row['speaker']})"
-        if not take_until_happy(label, row["text"], AUDIO_DIR / f"{row['id']}.wav"):
+        if not take_until_happy(label, row["text"], AUDIO_DIR / f"{row['id']}.wav", device):
             print("\nStopped. Run again to carry on where you left off.")
             break
 
@@ -160,12 +182,13 @@ def record_noise(args) -> int:
     """Background noise for the eval's SNR conditions."""
     print("Record 2-3 minutes of the kind of noise a shop has: a fan, traffic, chatter, a TV.")
     print("Several short clips are better than one long one. No speech you care about.")
+    device = calibrated_device()
     n = 1
     while True:
         while (NOISE_DIR / f"noise_{n:02d}.wav").exists():
             n += 1
         label = f"[noise_{n:02d}]"
-        if not take_until_happy(label, "(ambient noise - stay quiet)", NOISE_DIR / f"noise_{n:02d}.wav"):
+        if not take_until_happy(label, "(ambient noise - stay quiet)", NOISE_DIR / f"noise_{n:02d}.wav", device):
             break
         if input("  another clip? Enter = yes, q = done > ").strip().lower() == "q":
             break
@@ -188,7 +211,9 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.list_devices:
-        print(_sounddevice().query_devices())
+        from scripts.calibrate import print_devices
+
+        print_devices()
         return 0
     return record_noise(args) if args.noise else record_corpus(args)
 

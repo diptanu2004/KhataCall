@@ -381,3 +381,30 @@ that found it is staying in.
   `scripts/out/usage.jsonl`; `uv run python -m scripts.usage` reports spend
   against the grant. A local meter beats checking the dashboard, and makes
   "how much did that experiment cost" answerable after the fact.
+
+## D-021 — The corpus must be recorded wideband on a wired mic, and the room measured
+- **Date:** 2026-10-09 · **Status:** Accepted
+- **Why this is not a detail.** The eval adds shop noise at known SNRs (20, 10,
+  5, 0 dB) and the telephone channel on top of the recordings. That only
+  measures anything if the recordings start far cleaner than the harshest
+  condition. Two ways to silently destroy the experiment:
+  1. **A noisy room.** At 20 dB room SNR the "clean" baseline is really a 20 dB
+     recording, and the 20 dB condition is indistinguishable from it. The curve
+     flattens and the headline chart says nothing.
+  2. **A narrowband microphone.** A Bluetooth headset records in hands-free
+     mode: 8-16 kHz and compressed. That is the telephone channel, already
+     applied, uncontrolled and unrecorded — precisely what `channel/degrade.py`
+     is supposed to add at known settings.
+- **Found on this machine:** of 17 input devices, the realme Buds, JBL buds and
+  the phone all expose Bluetooth hands-free inputs at 8-16 kHz. **MME and
+  DirectSound report those same buds as 44100 Hz**; only WASAPI shows the real
+  16 kHz. So the reported sample rate cannot be trusted, and `calibrate.py`
+  judges by device name as well as rate.
+- **Thresholds** (`scripts/calibrate.py`): room noise floor at or below -45 dBFS,
+  speech peaks between -12 and -3 dBFS, and **source SNR of at least 30 dB** —
+  10 dB of margin over the eval's quietest condition. Below 30 dB the script
+  refuses to bless the setup.
+- **Not enforced at eval time yet.** M3's runner should re-check the delivered
+  recordings and refuse, or at least flag, any whose measured noise floor would
+  contaminate the conditions. Calibration catches the setup; it cannot catch a
+  lorry going past during take 94.
