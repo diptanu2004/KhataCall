@@ -81,6 +81,9 @@ uv run pytest -q                                # tests (offline)
 uv run python -m scripts.smoke both             # 2 real API calls: Timbre TTS, then Prisma STT on its output
 uv run python -m scripts.latency --dry-run      # count planned calls
 uv run python -m scripts.latency --n 5          # measure warm Gnani latency (10 real calls)
+uv run python -m scripts.wsclient               # drive /ws like the browser, no browser needed
+USE_FAKES=true uv run uvicorn app.main:app      # run the whole UI with no API calls
+FAKE_LLM=true uv run uvicorn app.main:app       # real Prisma + Timbre, canned Evon
 uv run python -m eval.run_eval --dry-run        # count planned API calls
 uv run python -m eval.run_eval --max-calls 200  # run eval with a hard cap
 uv run python -m eval.report                    # build charts from results
@@ -213,13 +216,16 @@ Mark tasks `[x]` as they are completed. `[human]` = Diptanu does this, not Claud
 
 ### M1 — End-to-end loop (Thu Oct 8 – Tue Oct 13)
 - [x] **Decision by Fri Oct 9:** Evon hosted vs self-hosted → **Kaggle, self-hosted** (D-001)
-- [ ] Evon adapter (see §7)
-- [ ] `/ws` endpoint + session state machine (no tools yet; plain replies)
-- [ ] `index.html`: push-to-talk, transcript, agent text, audio playback
-- [ ] Per-stage latency timing, sent to the client
+- [x] Evon adapter (see §7) — written and unit-tested; **not yet run against a real endpoint**
+- [x] `/ws` endpoint + session state machine (no tools yet; plain replies)
+- [x] `index.html`: push-to-talk, transcript, agent text, audio playback
+- [x] Per-stage latency timing, sent to the client
 - [ ] [human] Write ~100 synthetic utterances into `scripts.csv`; start recording (self + 1–2 friends)
 
 **Done when:** speaking a Hinglish sentence produces a spoken Hinglish reply in the browser.
+✅ Working Oct 8 with real Prisma + real Timbre and canned Evon replies
+(`FAKE_LLM=true`): total to first audio 1227-1598 ms (D-019). Swap in real
+Evon once it is served on Kaggle (D-001).
 
 ### M2 — Useful agent (Wed Oct 14 – Tue Oct 20)
 - [ ] Ledger schema + repo (customers, transactions, stock)

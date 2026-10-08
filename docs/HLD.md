@@ -376,7 +376,7 @@ The table below is grounded in the Oct 7 measurements in §12.1, not guesses.
 | Executor + name match + DB | 10 ms | SQLite, in-process |
 | Timbre first audio chunk | 900 ms | measured p50 857 ms incl. handshake (D-018) |
 | Network + playback start | 140 ms | |
-| **Total p50 target** | **~2.3 s** | |
+| **Total p50 target** | **~2.3 s** | measured 1.4 s without Evon (§12.3) |
 
 **This replaces the original 1.5 s target, which was set before any
 measurement.** The two Gnani legs alone measure about 1.2 s p50 at best, so
@@ -415,6 +415,27 @@ p50/p90.
    - A demo recorded at a bad moment will look broken through no fault of the
      code. Record it more than once, and keep the latency readout visible so
      the number is honest rather than hidden.
+
+### 12.3 End-to-end, measured Oct 8
+
+Three consecutive turns through the real server, real Prisma and real Timbre,
+with canned Evon replies (`FAKE_LLM=true`):
+
+| | turn 1 | turn 2 | turn 3 |
+|---|---|---|---|
+| speech-to-text | 641 ms | 593 ms | 516 ms |
+| first reply audio | 954 ms | 788 ms | 710 ms |
+| **total to first audio** | 1598 ms | 1382 ms | 1227 ms |
+
+Add the 800 ms Evon estimate and the p50 lands near **2.2 s**, consistent with
+the budget above. Evon is the only unmeasured term left (risk R7).
+
+An earlier run of the same path reported 1891 ms for speech-to-text. The cause
+was ours, not Gnani's: the timer enclosed the WebSocket teardown, and the turn
+blocked on it before calling the LLM. Both are fixed, and `session.py` now logs
+a per-turn diagnostic line (how much audio arrived, over how long, in how many
+chunks, versus what Prisma reported) so a regression like it is visible at a
+glance. See DECISIONS.md D-019.
 
 ### 12.2 Known optimisations, not yet built
 

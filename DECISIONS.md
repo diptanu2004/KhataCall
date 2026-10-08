@@ -279,3 +279,44 @@ Fixes, now in `gnani_stt_stream.py`:
   3. **Never quote a single latency sample.** Report p50/p90 with a timestamp.
 - **Also observed:** a `start` event precedes the audio chunks on the
   WebSocket, as the SSE docs describe but the WebSocket page does not.
+
+## D-019 — Socket teardown belongs off the critical path; segment completion needs a quiet period
+- **Date:** 2026-10-08 · **Status:** Accepted (measured)
+- **Symptom:** the first real turn through the server reported `stt_ms` of
+  **1891 ms**, while the adapter measured on its own gave 267 ms the same
+  minute. Load variance (D-015) did not explain it.
+- **Diagnosis.** Per-turn diagnostics (now logged by `session.py`) showed the
+  audio arriving perfectly: 3.52 s of speech over 3.51 s in 176 chunks, with
+  `stop` 24 ms after the last chunk. No burst, no lag. The adapter's own tail
+  was 431 ms. The missing ~1.3 s was **our own teardown**: `stt_ms` was
+  computed after `_close_stt()`, and closing a WebSocket is a handshake with
+  the server. So the measurement included it *and* the turn blocked on it
+  before calling Evon.
+- **Fixes:**
+  1. `stt_ms` is taken the instant `finish()` returns, before any teardown.
+  2. The socket is handed to a background task (`_release_stt`). The transcript
+     is already in hand, so nothing waits for the close.
+  3. The fixed 300 ms "extra segment grace" became a **quiet period** that
+     restarts whenever another segment arrives. The VAD can split one spoken
+     sentence into two segments ("Sharma ji ka" / "dedh sau udhaar"), and
+     returning on the first would silently drop the amount. A fixed sleep got
+     the timing right by luck; a quiet period gets it right by construction.
+     Default 200 ms, since all audio has already been sent by then.
+
+**Result, three consecutive real turns** (real Prisma + real Timbre, canned Evon):
+
+| | turn 1 | turn 2 | turn 3 |
+|---|---|---|---|
+| `stt_ms` (was 1891) | 641 | 593 | **516** |
+| of which adapter tail | 431 | 382 | 304 |
+| of which Prisma inference | 152 | 155 | 157 |
+| `tts_first_byte_ms` | 954 | 788 | 710 |
+| **total to first audio** | 1598 | 1382 | **1227** |
+
+The remaining `stt_ms` overhead above the tail is the 200 ms quiet period,
+which is a deliberate correctness cost.
+
+**Lesson worth keeping:** two independent measurements of "the same" thing
+disagreed by 7x, and the cause was neither the network nor the vendor but a
+line of our own code on the wrong side of a timer. The per-turn diagnostic log
+that found it is staying in.

@@ -69,7 +69,7 @@ def build(events: list[dict], **kwargs) -> tuple[PrismaStreamingSTT, FakeStream,
         return stream
 
     kwargs.setdefault("pace_realtime", False)
-    kwargs.setdefault("extra_segment_grace_s", 0)
+    kwargs.setdefault("quiet_period_s", 0)
     kwargs.setdefault("padding_margin_ms", 0)
     kwargs.setdefault("min_silence_ms", 100)
     return PrismaStreamingSTT("test-key", connect=connect, **kwargs), stream, captured
@@ -157,7 +157,7 @@ def test_returns_transcript_and_satisfies_protocol():
 def test_joins_multiple_vad_segments():
     stt, _, _ = build(
         [CONNECTED, transcript_event("sharma ji ka", 0), transcript_event("dedh sau udhaar", 1)],
-        extra_segment_grace_s=0.05,
+        quiet_period_s=0.05,
     )
     result = run(stt)
     assert result.text == "sharma ji ka dedh sau udhaar"
@@ -222,3 +222,88 @@ def test_non_final_transcript_does_not_end_the_wait():
 def test_connected_config_is_captured():
     stt, _, _ = build([CONNECTED, transcript_event("ok")])
     assert run(stt).raw["connected_config"]["chunk_size"] == 512
+
+
+# --- live() : microphone path ----------------------------------------------
+
+
+def live_stt(events: list[dict], **kwargs) -> tuple[PrismaStreamingSTT, FakeStream]:
+    stream = FakeStream(events, emit_after_frames=kwargs.pop("emit_after_frames", None))
+    kwargs.setdefault("min_silence_ms", 100)
+    kwargs.setdefault("padding_margin_ms", 0)
+    kwargs.setdefault("quiet_period_s", 0)
+    return PrismaStreamingSTT("test-key", connect=lambda url, **kw: stream, **kwargs), stream
+
+
+def test_live_buffers_arbitrary_chunk_sizes_into_1024_byte_frames():
+    """The browser sends whatever size it likes; the protocol demands exactly 1024."""
+    stt, stream = live_stt([CONNECTED, transcript_event("haan")])
+
+    async def run():
+        async with stt.live(language="en-IN", sample_rate=16_000) as live:
+            for _ in range(10):
+                await live.push(bytes(300))  # 3000 bytes total -> 2 whole frames
+            assert len(stream.sent) == 2
+            return await live.finish()
+
+    result = asyncio.run(run())
+    assert result.text == "haan"
+    # 2 frames, then the 952-byte remainder padded to 1024, then 100 ms of silence (4 frames).
+    assert len(stream.sent) == 2 + 1 + 4
+    assert all(len(f) == FRAME_BYTES for f in stream.sent)
+
+
+def test_live_does_not_pace_pushes():
+    """Live audio is already real-time; pacing it again would double the delay."""
+    stt, _ = live_stt([CONNECTED, transcript_event("ok")])
+
+    async def run():
+        async with stt.live(language="en-IN", sample_rate=16_000) as live:
+            start = asyncio.get_running_loop().time()
+            for _ in range(32):  # 1 s of audio at 16 kHz
+                await live.push(bytes(FRAME_BYTES))
+            elapsed = asyncio.get_running_loop().time() - start
+            await live.finish()
+            return elapsed
+
+    # Paced, this would take ~1 s. Unpaced it should be near-instant.
+    assert asyncio.run(run()) < 0.2
+
+
+def test_live_tail_latency_excludes_the_silence_padding():
+    stt, _ = live_stt([CONNECTED, transcript_event("ok")], min_silence_ms=200, padding_margin_ms=150)
+
+    async def run():
+        async with stt.live(language="en-IN", sample_rate=16_000) as live:
+            await live.push(bytes(FRAME_BYTES * 4))
+            return await live.finish()
+
+    result = asyncio.run(run())
+    # 350 ms of padding is burst, so the tail reflects the server's reply, not the padding.
+    assert result.latency_ms is not None
+    assert result.latency_ms < 300
+    assert result.raw["frames_sent"] == 4 + 11
+
+
+def test_live_rejects_unsupported_sample_rate():
+    stt, _ = live_stt([CONNECTED])
+
+    async def run():
+        async with stt.live(language="en-IN", sample_rate=22_050):
+            pass
+
+    with pytest.raises(ValueError, match="8000"):
+        asyncio.run(run())
+
+
+def test_live_push_raises_after_a_server_error():
+    stt, stream = live_stt([{"type": "error", "message": "bad sample rate"}], emit_after_frames=1)
+
+    async def run():
+        async with stt.live(language="en-IN", sample_rate=16_000) as live:
+            await live.push(bytes(FRAME_BYTES))
+            await asyncio.sleep(0)  # let the receiver see the error
+            await live.push(bytes(FRAME_BYTES))
+
+    with pytest.raises(GnaniAPIError, match="bad sample rate"):
+        asyncio.run(run())

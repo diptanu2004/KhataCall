@@ -9,24 +9,32 @@ Protocol constraints the docs are explicit about:
   - server-side VAD closes a segment after `x-min-silence-ms` of silence
     (default 500 ms), then emits `transcript`
 
-Observed live, and *not* in the docs (see DECISIONS.md D-016):
+Observed live, and *not* in the docs (see DECISIONS.md D-017):
   - a `speech_start` event, and `utterance_id` / `is_final` on transcripts
   - `connected.config` advertises `partials_enabled`, `partial_interval_ms`
     and `partial_max_window_s`, so interim transcripts exist but are off
 
-**Why latency is measured from the end of real audio.** Frames are paced, so
-wall-clock time for a clip is at least its duration. In push-to-talk the owner
-has already streamed that audio while speaking; what they wait for is whatever
-happens after their last word. `Transcript.latency_ms` is therefore measured
-from the moment the last frame of *real* audio was sent, excluding the silence
-padding we add to trip the VAD.
+**Two entry points, because the live path and the eval path differ.**
+
+`live()` is for the browser: audio arrives from a microphone already at
+real-time cadence, so frames are forwarded the moment 1024 bytes have
+accumulated. Pacing them again would add a second real-time delay.
+
+`transcribe()` is for the eval harness and tests: it has a whole clip in hand,
+so it paces the frames itself to respect the protocol.
+
+**Why latency is measured from the end of real audio.** In push-to-talk the
+owner has already streamed their words while speaking; what they wait for is
+whatever happens after their last word. `Transcript.latency_ms` is measured
+from that moment, excluding the silence padding we add to trip the VAD.
 """
 
 import asyncio
 import json
 import time
-from collections.abc import Callable, Iterator
-from dataclasses import dataclass
+from collections.abc import AsyncIterator, Callable, Iterator
+from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
 from typing import Any
 
 import websockets
@@ -40,6 +48,13 @@ SUPPORTED_SAMPLE_RATES = (8000, 16000, 44100, 48000)
 VAD_MIN_SILENCE_RANGE_MS = (100, 2000)
 
 
+def frames(pcm: bytes) -> Iterator[bytes]:
+    """Split PCM into exactly-1024-byte frames, zero-padding the last one."""
+    for start in range(0, len(pcm), FRAME_BYTES):
+        frame = pcm[start : start + FRAME_BYTES]
+        yield frame if len(frame) == FRAME_BYTES else frame + bytes(FRAME_BYTES - len(frame))
+
+
 @dataclass
 class _Segment:
     text: str
@@ -47,11 +62,176 @@ class _Segment:
     raw: dict[str, Any]
 
 
-def frames(pcm: bytes) -> Iterator[bytes]:
-    """Split PCM into exactly-1024-byte frames, zero-padding the last one."""
-    for start in range(0, len(pcm), FRAME_BYTES):
-        frame = pcm[start : start + FRAME_BYTES]
-        yield frame if len(frame) == FRAME_BYTES else frame + bytes(FRAME_BYTES - len(frame))
+@dataclass
+class _Timings:
+    opened_at: float
+    speech_end_at: float | None = None  # last frame of real audio
+    vad_end_at: float | None = None
+    segments: list[_Segment] = field(default_factory=list)
+    events: list[dict[str, Any]] = field(default_factory=list)
+    connected_config: dict[str, Any] = field(default_factory=dict)
+
+
+class LiveTranscription:
+    """One utterance on an open Prisma socket. Push audio, then `finish()`."""
+
+    def __init__(
+        self,
+        ws: Any,
+        *,
+        sample_rate: int,
+        padding_ms: int,
+        min_silence_ms: int,
+        burst_padding: bool,
+        transcript_timeout_s: float,
+        quiet_period_s: float,
+    ) -> None:
+        self._ws = ws
+        self._sample_rate = sample_rate
+        self._padding_ms = padding_ms
+        self._min_silence_ms = min_silence_ms
+        self._burst_padding = burst_padding
+        self._transcript_timeout_s = transcript_timeout_s
+        self._quiet_period_s = quiet_period_s
+        self._buffer = bytearray()
+        self._t = _Timings(opened_at=time.perf_counter())
+        self._error: str | None = None
+        self._final_seen = asyncio.Event()
+        self._segment_arrived = asyncio.Event()
+        self._receiver: asyncio.Task | None = None
+        self.frames_sent = 0
+
+    # --- lifecycle, driven by PrismaStreamingSTT.live() ---
+
+    def _start_receiver(self) -> None:
+        self._receiver = asyncio.create_task(self._receive())
+
+    def _stop_receiver(self) -> None:
+        if self._receiver is not None:
+            self._receiver.cancel()
+
+    async def _receive(self) -> None:
+        async for message in self._ws:
+            if isinstance(message, bytes):
+                continue
+            event = json.loads(message)
+            self._t.events.append(event)
+            match event.get("type"):
+                case "error":
+                    self._error = event.get("message", "transcription failed")
+                    self._final_seen.set()
+                    return
+                case "connected":
+                    self._t.connected_config.update(event.get("config") or {})
+                # The docs name this "processing"; the live server sends "speech_end".
+                case "processing" | "speech_end" if self._t.vad_end_at is None:
+                    self._t.vad_end_at = time.perf_counter()
+                case "transcript":
+                    self._t.segments.append(_Segment(event.get("text", ""), time.perf_counter(), event))
+                    self._segment_arrived.set()
+                    # is_final is undocumented but present; absent means treat as final.
+                    if event.get("is_final", True):
+                        self._final_seen.set()
+        # Socket closed: unblock any waiter instead of letting it time out.
+        self._final_seen.set()
+
+    # --- sending ---
+
+    @property
+    def _done(self) -> bool:
+        return self._final_seen.is_set() or (self._receiver is not None and self._receiver.done())
+
+    async def _send_frame(self, frame: bytes) -> None:
+        await self._ws.send(frame)
+        self.frames_sent += 1
+
+    async def push(self, pcm: bytes) -> None:
+        """Forward microphone audio. Whole frames are sent as soon as they fill."""
+        if self._error:
+            raise GnaniAPIError(self._error)
+        self._buffer += pcm
+        while len(self._buffer) >= FRAME_BYTES and not self._done:
+            frame = bytes(self._buffer[:FRAME_BYTES])
+            del self._buffer[:FRAME_BYTES]
+            await self._send_frame(frame)
+
+    async def finish(self) -> Transcript:
+        """Mark end of speech, trip the VAD, and wait for the transcript."""
+        if self._buffer and not self._done:
+            await self._send_frame(bytes(self._buffer).ljust(FRAME_BYTES, b"\0"))
+            self._buffer.clear()
+        self._t.speech_end_at = time.perf_counter()
+
+        padding = bytes(2 * (self._sample_rate * self._padding_ms // 1000))
+        interval = FRAME_SAMPLES / self._sample_rate
+        next_send = time.perf_counter()
+        for frame in frames(padding):
+            if self._done:
+                break
+            await self._send_frame(frame)
+            if not self._burst_padding:
+                next_send += interval
+                if (delay := next_send - time.perf_counter()) > 0:
+                    await asyncio.sleep(delay)
+
+        try:
+            await asyncio.wait_for(self._final_seen.wait(), timeout=self._transcript_timeout_s)
+        except TimeoutError:
+            raise GnaniAPIError(
+                f"no transcript within {self._transcript_timeout_s:.0f} s of the last frame "
+                f"(min_silence_ms={self._min_silence_ms}, padding={self._padding_ms} ms)"
+            ) from None
+        await self._wait_for_quiet()
+
+        if self._error:
+            raise GnaniAPIError(self._error)
+        if not self._t.segments:
+            raise GnaniAPIError("stream closed without a transcript")
+        return self._build()
+
+    async def _wait_for_quiet(self) -> None:
+        """Wait out a short silence before declaring the utterance complete.
+
+        The VAD can split one spoken sentence into several segments - "Sharma ji ka"
+        then "dedh sau udhaar" if the owner pauses mid-phrase. Returning on the first
+        segment would silently drop the rest, and in a ledger that means a wrong
+        amount. So we wait for a quiet period, restarting it whenever another segment
+        lands, rather than sleeping a fixed time once.
+
+        All the audio has already been sent by this point, so a sibling segment
+        arrives within roughly one inference (~150-300 ms) or not at all.
+        """
+        if not self._quiet_period_s:
+            return
+        while True:
+            self._segment_arrived.clear()
+            try:
+                await asyncio.wait_for(self._segment_arrived.wait(), timeout=self._quiet_period_s)
+            except TimeoutError:
+                return
+
+    def _build(self) -> Transcript:
+        t = self._t
+        first = t.segments[0].arrived_at
+        tail = (first - t.speech_end_at) * 1000 if t.speech_end_at else None
+        return Transcript(
+            text=" ".join(s.text for s in t.segments if s.text).strip(),
+            latency_ms=tail,
+            raw={
+                "tail_ms": tail,
+                "total_ms": (t.segments[-1].arrived_at - t.opened_at) * 1000,
+                "server_latency_ms": t.segments[0].raw.get("latency"),
+                "vad_end_to_transcript_ms": (first - t.vad_end_at) * 1000 if t.vad_end_at else None,
+                "speech_end_to_vad_end_ms": (
+                    (t.vad_end_at - t.speech_end_at) * 1000 if t.vad_end_at and t.speech_end_at else None
+                ),
+                "num_segments": len(t.segments),
+                "frames_sent": self.frames_sent,
+                "connected_config": dict(t.connected_config),
+                "segments": [s.raw for s in t.segments],
+                "event_types": [e.get("type") for e in t.events],
+            },
+        )
 
 
 class PrismaStreamingSTT:
@@ -69,12 +249,12 @@ class PrismaStreamingSTT:
         # Silence appended after the utterance so the VAD closes. Must exceed min_silence_ms.
         padding_margin_ms: int = 150,
         # Push-to-talk release is an explicit end of speech, so the padding carries no
-        # information and need not be paced. Bursting it trades protocol politeness for
-        # latency; measured in D-016.
+        # information and need not be paced. Bursting it trades politeness for latency (D-016).
         burst_padding: bool = True,
         transcript_timeout_s: float = 15.0,
-        # Window after the first final transcript, in case the VAD split the utterance.
-        extra_segment_grace_s: float = 0.3,
+        # Silence required after the last segment before the utterance is declared done.
+        # Guards against the VAD splitting a sentence; see LiveTranscription._wait_for_quiet.
+        quiet_period_s: float = 0.2,
         pace_realtime: bool = True,
         connect: Callable[..., Any] = websockets.connect,
     ) -> None:
@@ -90,7 +270,7 @@ class PrismaStreamingSTT:
         self._padding_ms = min_silence_ms + padding_margin_ms
         self._burst_padding = burst_padding
         self._transcript_timeout_s = transcript_timeout_s
-        self._extra_segment_grace_s = extra_segment_grace_s
+        self._quiet_period_s = quiet_period_s
         self._pace_realtime = pace_realtime
         self._connect = connect
 
@@ -105,100 +285,37 @@ class PrismaStreamingSTT:
             "x-min-silence-ms": str(self._min_silence_ms),
         }
 
-    async def transcribe(self, audio: AudioClip, *, language: str) -> Transcript:
-        if audio.sample_rate not in SUPPORTED_SAMPLE_RATES:
-            raise ValueError(f"Prisma realtime accepts {SUPPORTED_SAMPLE_RATES}, got {audio.sample_rate}")
-
-        padding = bytes(2 * (audio.sample_rate * self._padding_ms // 1000))
-        frame_interval = FRAME_SAMPLES / audio.sample_rate
-
-        segments: list[_Segment] = []
-        events: list[dict[str, Any]] = []
-        connected_config: dict[str, Any] = {}
-        started = time.perf_counter()
-        speech_end_at: float | None = None  # last frame of real audio
-        vad_end_at: float | None = None
-        error: str | None = None
-        final_seen = asyncio.Event()
-
-        async with self._connect(self._ws_url, additional_headers=self._headers(language, audio.sample_rate)) as ws:
-
-            async def receive() -> None:
-                nonlocal vad_end_at, error
-                async for message in ws:
-                    if isinstance(message, bytes):
-                        continue
-                    event = json.loads(message)
-                    events.append(event)
-                    match event.get("type"):
-                        case "error":
-                            error = event.get("message", "transcription failed")
-                            final_seen.set()
-                            return
-                        case "connected":
-                            connected_config.update(event.get("config") or {})
-                        # The docs name this "processing"; the live server sends "speech_end".
-                        case "processing" | "speech_end" if vad_end_at is None:
-                            vad_end_at = time.perf_counter()
-                        case "transcript":
-                            segments.append(_Segment(event.get("text", ""), time.perf_counter(), event))
-                            # is_final is undocumented but present; absent means treat as final.
-                            if event.get("is_final", True):
-                                final_seen.set()
-                # Socket closed: unblock the waiter instead of letting it time out.
-                final_seen.set()
-
-            receiver = asyncio.create_task(receive())
-
-            async def send_paced(pcm: bytes, *, paced: bool) -> None:
-                nonlocal next_send
-                for frame in frames(pcm):
-                    if final_seen.is_set() or receiver.done():
-                        return
-                    await ws.send(frame)
-                    if paced and self._pace_realtime:
-                        next_send += frame_interval
-                        if (delay := next_send - time.perf_counter()) > 0:
-                            await asyncio.sleep(delay)
-
+    @asynccontextmanager
+    async def live(self, *, language: str, sample_rate: int) -> AsyncIterator[LiveTranscription]:
+        """Open a socket for one utterance of live microphone audio."""
+        if sample_rate not in SUPPORTED_SAMPLE_RATES:
+            raise ValueError(f"Prisma realtime accepts {SUPPORTED_SAMPLE_RATES}, got {sample_rate}")
+        headers = self._headers(language, sample_rate)
+        async with self._connect(self._ws_url, additional_headers=headers) as ws:
+            session = LiveTranscription(
+                ws,
+                sample_rate=sample_rate,
+                padding_ms=self._padding_ms,
+                min_silence_ms=self._min_silence_ms,
+                burst_padding=self._burst_padding,
+                transcript_timeout_s=self._transcript_timeout_s,
+                quiet_period_s=self._quiet_period_s,
+            )
+            session._start_receiver()
             try:
-                next_send = time.perf_counter()
-                await send_paced(audio.pcm, paced=True)
-                speech_end_at = time.perf_counter()
-                await send_paced(padding, paced=not self._burst_padding)
-
-                try:
-                    await asyncio.wait_for(final_seen.wait(), timeout=self._transcript_timeout_s)
-                except TimeoutError:
-                    raise GnaniAPIError(
-                        f"no transcript within {self._transcript_timeout_s:.0f} s of the last frame "
-                        f"(min_silence_ms={self._min_silence_ms}, padding={self._padding_ms} ms)"
-                    ) from None
-                if self._extra_segment_grace_s:
-                    await asyncio.sleep(self._extra_segment_grace_s)
+                yield session
             finally:
-                receiver.cancel()
+                session._stop_receiver()
 
-        if error:
-            raise GnaniAPIError(error)
-        if not segments:
-            raise GnaniAPIError("stream closed without a transcript")
-
-        first = segments[0].arrived_at
-        return Transcript(
-            text=" ".join(s.text for s in segments if s.text).strip(),
-            latency_ms=(first - speech_end_at) * 1000 if speech_end_at else None,
-            raw={
-                "tail_ms": (first - speech_end_at) * 1000 if speech_end_at else None,
-                "total_ms": (segments[-1].arrived_at - started) * 1000,
-                "server_latency_ms": segments[0].raw.get("latency"),
-                "vad_end_to_transcript_ms": (first - vad_end_at) * 1000 if vad_end_at else None,
-                "speech_end_to_vad_end_ms": (
-                    (vad_end_at - speech_end_at) * 1000 if vad_end_at and speech_end_at else None
-                ),
-                "num_segments": len(segments),
-                "connected_config": connected_config,
-                "segments": [s.raw for s in segments],
-                "event_types": [e.get("type") for e in events],
-            },
-        )
+    async def transcribe(self, audio: AudioClip, *, language: str) -> Transcript:
+        """Transcribe a complete clip, pacing frames as the protocol requires."""
+        async with self.live(language=language, sample_rate=audio.sample_rate) as session:
+            interval = FRAME_SAMPLES / audio.sample_rate
+            next_send = time.perf_counter()
+            for frame in frames(audio.pcm):
+                await session.push(frame)
+                if self._pace_realtime:
+                    next_send += interval
+                    if (delay := next_send - time.perf_counter()) > 0:
+                        await asyncio.sleep(delay)
+            return await session.finish()

@@ -28,7 +28,10 @@ class Settings(BaseSettings):
     evon_model: str = "gnani/gnani-evon-v3.3-30B-A3B"
 
     db_path: str = "khatacall.db"
+    # All three adapters faked: no network, no credits.
     use_fakes: bool = False
+    # Only Evon faked, so real Prisma and Timbre can be demoed before the weights land.
+    fake_llm: bool = False
 
 
 @lru_cache

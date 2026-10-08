@@ -2,6 +2,7 @@
 
 from collections import deque
 from collections.abc import AsyncIterator, Iterable, Sequence
+from contextlib import asynccontextmanager
 from typing import Any
 
 from app.adapters.base import AudioClip, LLMReply, Message, Transcript
@@ -60,3 +61,67 @@ class FakeTTS:
             n = min(chunk_samples, total_samples)
             yield bytes(2 * n)
             total_samples -= n
+
+
+class FakeLiveTranscription:
+    """One utterance on a FakeLiveSTT. Records pushed audio."""
+
+    def __init__(self, transcript: str, *, latency_ms: float = 0.0, fail_with: Exception | None = None) -> None:
+        self._transcript = transcript
+        self._latency_ms = latency_ms
+        self._fail_with = fail_with
+        self.pushed = bytearray()
+        self.finished = False
+
+    async def push(self, pcm: bytes) -> None:
+        self.pushed += pcm
+
+    async def finish(self) -> Transcript:
+        self.finished = True
+        if self._fail_with is not None:
+            raise self._fail_with
+        return Transcript(text=self._transcript, latency_ms=self._latency_ms)
+
+
+class FakeLiveSTT:
+    """Streaming stand-in for PrismaStreamingSTT: scripted transcripts, one per `live()`."""
+
+    model_id = "fake-live-stt"
+
+    def __init__(
+        self, transcripts: Iterable[str] = (), *, fail_with: Exception | None = None
+    ) -> None:
+        self._queue = deque(transcripts)
+        self._fail_with = fail_with
+        self.sessions: list[FakeLiveTranscription] = []
+        self.opened_with: list[tuple[str, int]] = []
+        self.closed = 0
+
+    @asynccontextmanager
+    async def live(self, *, language: str, sample_rate: int) -> AsyncIterator[FakeLiveTranscription]:
+        self.opened_with.append((language, sample_rate))
+        if not self._queue and self._fail_with is None:
+            raise AssertionError("FakeLiveSTT ran out of scripted transcripts")
+        session = FakeLiveTranscription(
+            self._queue.popleft() if self._queue else "", fail_with=self._fail_with
+        )
+        self.sessions.append(session)
+        try:
+            yield session
+        finally:
+            self.closed += 1
+
+
+class FailingTTS:
+    """Raises partway through synthesis, to exercise the error path."""
+
+    model_id = "failing-tts"
+
+    def __init__(self, sample_rate: int = 16_000, chunks_before_failure: int = 0) -> None:
+        self.sample_rate = sample_rate
+        self._chunks = chunks_before_failure
+
+    async def synthesize(self, text: str, *, language: str, voice: str) -> AsyncIterator[bytes]:
+        for _ in range(self._chunks):
+            yield bytes(320)
+        raise RuntimeError("synthesis failed")

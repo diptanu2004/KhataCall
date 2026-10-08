@@ -1,12 +1,285 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>KhataCall</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KhataCall</title>
+<style>
+  :root {
+    --bg: #faf7f2; --panel: #fff; --ink: #1c1917; --muted: #78716c;
+    --line: #e7e1d8; --accent: #b45309; --accent-ink: #fff;
+    --ok: #15803d; --warn: #b91c1c;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1917; --panel: #262220; --ink: #f5f5f4; --muted: #a8a29e;
+      --line: #3a3330; --accent: #f59e0b; --accent-ink: #1c1917;
+      --ok: #4ade80; --warn: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 16px 40px; background: var(--bg); color: var(--ink);
+    font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  h1 { font-size: 1.4rem; margin: 0; letter-spacing: -0.01em; }
+  .tag { font-size: .75rem; color: var(--muted); border: 1px solid var(--line);
+         padding: 2px 8px; border-radius: 999px; }
+  .sub { color: var(--muted); font-size: .9rem; margin: 0 0 20px; }
+
+  .mic {
+    width: 100%; padding: 22px; font-size: 1.05rem; font-weight: 600; font-family: inherit;
+    color: var(--accent-ink); background: var(--accent); border: 0;
+    border-radius: var(--radius); cursor: pointer; touch-action: none;
+    transition: transform .06s ease, filter .15s ease;
+  }
+  .mic:disabled { background: var(--line); color: var(--muted); cursor: default; }
+  .mic.held { transform: scale(.985); filter: brightness(.9); }
+  .hint { text-align: center; color: var(--muted); font-size: .8rem; margin: 8px 0 20px; }
+
+  .status { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; font-size: .9rem; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.live { background: var(--ok); }
+  .dot.busy { background: var(--accent); animation: pulse 1s ease-in-out infinite; }
+  .dot.bad { background: var(--warn); }
+  @keyframes pulse { 50% { opacity: .35; } }
+
+  .panel { background: var(--panel); border: 1px solid var(--line);
+           border-radius: var(--radius); padding: 14px 16px; margin-bottom: 14px; }
+  .panel h2 { font-size: .72rem; text-transform: uppercase; letter-spacing: .07em;
+              color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+  .turn { padding: 10px 0; border-top: 1px solid var(--line); }
+  .turn:first-of-type { border-top: 0; }
+  .who { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .said { margin: 2px 0 0; }
+  .empty { color: var(--muted); font-style: italic; }
+
+  .lat { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 10px; }
+  .lat div { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  .lat .k { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .lat .v { font-variant-numeric: tabular-nums; font-size: 1.05rem; font-weight: 600; }
+  .lat .total { outline: 1px solid var(--accent); }
+
+  .log { font: .78rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+         color: var(--muted); max-height: 140px; overflow-y: auto; white-space: pre-wrap; }
+  .log .err { color: var(--warn); }
+</style>
 </head>
 <body>
-  <h1>KhataCall</h1>
-  <p>Push-to-talk UI arrives in M1.</p>
+<div class="wrap">
+  <header>
+    <h1>KhataCall</h1>
+    <span class="tag" id="mode">connecting…</span>
+  </header>
+  <p class="sub">Hinglish voice assistant for a kirana udhaar book. Hold the button and speak.</p>
+
+  <button class="mic" id="mic" disabled>Hold to speak</button>
+  <p class="hint">Hold the button, or hold the <kbd>Space</kbd> bar</p>
+
+  <div class="status"><span class="dot" id="dot"></span><span id="state">Connecting…</span></div>
+
+  <div class="panel">
+    <h2>Conversation</h2>
+    <div id="convo"><p class="empty">Nothing yet.</p></div>
+  </div>
+
+  <div class="panel">
+    <h2>Latency, this turn (from end of speech)</h2>
+    <div class="lat">
+      <div><div class="k">Speech→text</div><div class="v" id="l-stt">—</div></div>
+      <div><div class="k">Evon</div><div class="v" id="l-llm">—</div></div>
+      <div><div class="k">First audio</div><div class="v" id="l-tts">—</div></div>
+      <div class="total"><div class="k">Total</div><div class="v" id="l-total">—</div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Log</h2>
+    <div class="log" id="log"></div>
+  </div>
+</div>
+
+<script>
+const SAMPLE_RATE = 16000;
+const $ = (id) => document.getElementById(id);
+
+let ws, audioCtx, micStream, micNode, playhead = 0, holding = false, ready = false;
+
+function log(line, isError) {
+  const el = document.createElement("div");
+  if (isError) el.className = "err";
+  el.textContent = new Date().toLocaleTimeString() + "  " + line;
+  $("log").prepend(el);
+}
+
+function setState(state) {
+  const labels = {
+    IDLE: "Idle", LISTENING: "Ready — hold to speak", TRANSCRIBING: "Transcribing…",
+    THINKING: "Thinking…", CONFIRMING: "Confirming…", SPEAKING: "Speaking…",
+  };
+  $("state").textContent = labels[state] || state;
+  const dot = $("dot");
+  dot.className = "dot " + (
+    state === "LISTENING" ? "live" :
+    ["TRANSCRIBING", "THINKING", "SPEAKING"].includes(state) ? "busy" : ""
+  );
+}
+
+function addTurn(who, text) {
+  const convo = $("convo");
+  convo.querySelector(".empty")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "turn";
+  const label = document.createElement("div");
+  label.className = "who";
+  label.textContent = who;
+  const said = document.createElement("p");
+  said.className = "said";
+  said.textContent = text;
+  wrap.append(label, said);
+  convo.prepend(wrap);
+}
+
+function showLatency(m) {
+  const fmt = (v) => (v == null ? "—" : v >= 1000 ? (v / 1000).toFixed(2) + " s" : Math.round(v) + " ms");
+  $("l-stt").textContent = fmt(m.stt_ms);
+  $("l-llm").textContent = fmt(m.llm_ms);
+  $("l-tts").textContent = fmt(m.tts_first_byte_ms);
+  $("l-total").textContent = fmt(m.total_ms);
+}
+
+// --- playback: schedule raw PCM16 chunks back to back ---
+
+let playRate = SAMPLE_RATE;
+
+function playChunk(arrayBuffer) {
+  if (!audioCtx) return;
+  const pcm = new Int16Array(arrayBuffer);
+  if (!pcm.length) return;
+  const buffer = audioCtx.createBuffer(1, pcm.length, playRate);
+  const channel = buffer.getChannelData(0);
+  for (let i = 0; i < pcm.length; i++) channel[i] = pcm[i] / 32768;
+  const source = audioCtx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(audioCtx.destination);
+  const now = audioCtx.currentTime;
+  // Keep a small cushion so consecutive chunks do not click.
+  playhead = Math.max(playhead, now + 0.06);
+  source.start(playhead);
+  playhead += buffer.duration;
+}
+
+// --- microphone capture ---
+
+async function startMic() {
+  micStream = await navigator.mediaDevices.getUserMedia({
+    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+  });
+  const source = audioCtx.createMediaStreamSource(micStream);
+
+  // ScriptProcessor is deprecated but needs no module loading and is well supported.
+  // The buffer is 4096 frames at the context rate; we downsample to 16 kHz below.
+  micNode = audioCtx.createScriptProcessor(4096, 1, 1);
+  micNode.onaudioprocess = (event) => {
+    if (!holding || !ws || ws.readyState !== WebSocket.OPEN) return;
+    const input = event.inputBuffer.getChannelData(0);
+    const ratio = audioCtx.sampleRate / SAMPLE_RATE;
+    const out = new Int16Array(Math.floor(input.length / ratio));
+    for (let i = 0; i < out.length; i++) {
+      const s = input[Math.floor(i * ratio)];
+      out[i] = Math.max(-1, Math.min(1, s)) * 32767;
+    }
+    ws.send(out.buffer);
+  };
+  source.connect(micNode);
+  // ScriptProcessor only runs while connected to a destination; a zero gain keeps it silent.
+  const mute = audioCtx.createGain();
+  mute.gain.value = 0;
+  micNode.connect(mute).connect(audioCtx.destination);
+}
+
+// --- push to talk ---
+
+async function press() {
+  if (holding || !ready || !ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!audioCtx) {
+    audioCtx = new AudioContext();
+    await startMic();
+  }
+  await audioCtx.resume();
+  holding = true;
+  $("mic").classList.add("held");
+  ws.send(JSON.stringify({ type: "start" }));
+}
+
+function release() {
+  if (!holding) return;
+  holding = false;
+  $("mic").classList.remove("held");
+  ws.send(JSON.stringify({ type: "stop" }));
+}
+
+const mic = $("mic");
+mic.addEventListener("pointerdown", (e) => { e.preventDefault(); press(); });
+mic.addEventListener("pointerup", release);
+mic.addEventListener("pointercancel", release);
+mic.addEventListener("pointerleave", release);
+window.addEventListener("keydown", (e) => {
+  if (e.code === "Space" && !e.repeat && e.target === document.body) { e.preventDefault(); press(); }
+});
+window.addEventListener("keyup", (e) => { if (e.code === "Space") { e.preventDefault(); release(); } });
+window.addEventListener("blur", release);
+
+// --- connection ---
+
+function connect() {
+  ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
+  ws.binaryType = "arraybuffer";
+
+  ws.onopen = () => {
+    ready = true;
+    $("mic").disabled = false;
+    setState("LISTENING");
+    log("connected");
+  };
+
+  ws.onmessage = (event) => {
+    if (event.data instanceof ArrayBuffer) { playChunk(event.data); return; }
+    const m = JSON.parse(event.data);
+    switch (m.type) {
+      case "state": setState(m.state); break;
+      case "transcript": addTurn("You said", m.text); break;
+      case "agent_text": addTurn("KhataCall", m.text); break;
+      case "audio_start": playRate = m.sample_rate; playhead = 0; break;
+      case "audio_end": break;
+      case "latency": showLatency(m); log(`latency total ${Math.round(m.total_ms)} ms`); break;
+      case "notice": log(m.message); break;
+      case "error": log(m.message, true); break;
+      case "ledger_update": break; // M2
+    }
+  };
+
+  ws.onclose = () => {
+    ready = false;
+    $("mic").disabled = true;
+    $("dot").className = "dot bad";
+    $("state").textContent = "Disconnected — retrying…";
+    log("disconnected", true);
+    setTimeout(connect, 1500);
+  };
+
+  ws.onerror = () => log("websocket error", true);
+}
+
+fetch("/healthz")
+  .then((r) => r.json())
+  .then((h) => { $("mode").textContent = h.mode === "fakes" ? "fakes (no API calls)" : "Gnani models"; })
+  .catch(() => { $("mode").textContent = "unknown"; });
+
+connect();
+</script>
 </body>
 </html>

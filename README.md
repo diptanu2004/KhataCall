@@ -110,11 +110,16 @@ packet loss.
   - character and word error rate, after normalization
   - latency from end of speech to first reply audio (p50/p90, per stage)
 
-Measured so far (Oct 7, 5 calls per stage): speech-to-text returns a transcript
-**267-367 ms** after the last word, and the first reply audio arrives about
-**857 ms** after that. Choosing Gnani's streaming endpoint over its REST one
-accounted for a 17x cut on the speech-to-text leg. Gnani-side load makes these
-numbers swing by up to 6x between runs, so the project reports p50/p90 with
+Measured end to end (Oct 8, real Prisma and Timbre, three consecutive turns):
+**1.2-1.6 s** from the end of speech to the first word of the reply, of which
+speech-to-text is 516-641 ms and the first reply audio 710-954 ms. Evon is not
+yet in that figure.
+
+Two things got it there. Choosing Gnani's streaming speech endpoint over its
+REST one cut that leg 17x. Moving our own WebSocket teardown off the critical
+path cut another 1.3 s, after a per-turn diagnostic log showed the audio was
+arriving perfectly and the delay was ours. Gnani-side load still makes these
+numbers swing several-fold between runs, so the project reports p50/p90 with
 timestamps rather than a single best figure.
 - The demo's "phone line mode" toggle uses the **same** degradation code, so
   what you hear in the demo is what was measured.
@@ -124,18 +129,26 @@ and the M4 fixes (target Nov 1).*
 
 ## Setup
 
-> Not runnable yet. These are the planned commands; this section will be
-> confirmed once M1 lands.
-
 ```bash
 uv sync                                         # install dependencies
-cp .env.example .env                            # add your Gnani API key + Evon endpoint
-uv run uvicorn app.main:app --reload            # open http://localhost:8000
+cp .env.example .env                            # add your Gnani API key
+
+# Try it with no API key and no API calls at all:
+USE_FAKES=true uv run uvicorn app.main:app      # open http://localhost:8000
+
+# Real Gnani voice models, canned Evon replies (Evon is served separately, see below):
+FAKE_LLM=true uv run uvicorn app.main:app
+
 uv run pytest -q                                # offline tests (no network)
-uv run python -m eval.run_eval --dry-run        # show how many API calls an eval would make
-uv run python -m eval.run_eval --max-calls 200  # run the eval with a hard cap
-uv run python -m eval.report                    # build charts from results
+uv run python -m scripts.smoke both             # one real Timbre + one real Prisma call
+uv run python -m scripts.wsclient               # drive the server like the browser does
+uv run python -m scripts.latency --dry-run      # count planned API calls before spending
 ```
+
+Hold the button (or the space bar) and speak. The page shows what was heard,
+what the agent replies, and the latency of each stage.
+
+*The eval harness commands (`eval.run_eval`, `eval.report`) arrive in M3.*
 
 **Requirements:**
 - Python 3.11+ and [uv](https://docs.astral.sh/uv/)
