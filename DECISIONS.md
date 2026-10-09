@@ -448,3 +448,26 @@ that found it is staying in.
   10-condition baseline over speaker a's share is **Rs 17**. The full
   180-utterance corpus will be roughly three times that. This is consistent
   with D-020: credits are not the constraint.
+
+## D-023 — Name matching needs separation, not just a high score
+- **Date:** 2026-10-09 · **Status:** Accepted (measured)
+- **The dangerous failure is not a miss.** If the agent cannot find a customer
+  it asks, which costs a second. If it confidently finds the *wrong* customer,
+  the debt lands on an innocent person, the turn looks successful, and nobody
+  notices until two customers disagree with the book weeks later.
+- **A single threshold does not prevent that.** Measured with
+  `fuzz.token_sort_ratio`: the input `arma` (a dropped leading consonant, which
+  is exactly what a noisy line produces) scores **88.9 against "Varma" and 80.0
+  against "Sharma"**. Any absolute cutoff at or below 88 confidently picks Varma
+  on an 8.9-point lead.
+- **So matching uses two conditions:** the best candidate must score at least
+  **CONFIDENT = 85**, *and* beat the runner-up by at least **SEPARATION = 12**.
+  Failing either returns AMBIGUOUS with the candidates, and the agent asks.
+- **The separation guard lets the absolute bar come down**, which is what admits
+  honest romanization variants: `bisht`/`bist` score 88.9 and
+  `chauhan`/`chouhan` 85.7, and each pair is one person (D-012).
+- **The result type enforces it.** `NameMatch.name` is populated only on a
+  MATCH, so a caller cannot reach for an uncertain name by accident.
+- **Provisional numbers.** M4 tunes them against the eval, where the trade is
+  measurable: every point of CONFIDENT trades silent misattributions against
+  needless questions. Until then the bias is deliberately toward asking.
