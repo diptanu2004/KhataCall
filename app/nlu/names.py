@@ -29,7 +29,14 @@ from rapidfuzz import fuzz, process
 
 from app.nlu.numbers import normalise
 
-__all__ = ["Decision", "NameMatch", "match_name", "normalise_name", "strip_honorifics"]
+__all__ = [
+    "Decision",
+    "NameMatch",
+    "has_real_name",
+    "match_name",
+    "normalise_name",
+    "strip_honorifics",
+]
 
 # Terms of address, not part of the name. Order matters only for readability.
 HONORIFICS = frozenset(
@@ -87,6 +94,16 @@ def strip_honorifics(spoken: str) -> str:
     # An utterance of nothing but honorifics ("ji") leaves the original alone;
     # there is no name in it to find, and the caller decides what that means.
     return " ".join(kept) if kept else spoken.strip()
+
+
+def has_real_name(spoken: str) -> bool:
+    """Is there anything here but terms of address?
+
+    "ji" and "bhaiya aunty" name nobody. `strip_honorifics` deliberately hands
+    those back unchanged rather than returning an empty string, so a caller that
+    is about to *create* a customer has to ask this first.
+    """
+    return any(normalise(w) and normalise(w) not in HONORIFICS for w in spoken.split())
 
 
 def normalise_name(spoken: str) -> str:

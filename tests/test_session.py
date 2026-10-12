@@ -323,3 +323,35 @@ def test_unknown_message_type_raises():
     session, _, _, _, _ = build()
     with pytest.raises(Exception):
         asyncio.run(session.handle_json({"type": "nonsense"}))
+
+
+# --- the ledger panel -------------------------------------------------------
+
+
+def test_the_opening_ledger_is_pushed_on_connect():
+    """The shop's book should be on screen before anyone speaks."""
+    from app.ledger.db import connect
+    from app.ledger.repo import Ledger
+
+    ledger = Ledger(connect(":memory:"))
+    sharma = ledger.add_customer("Sharma ji")
+    ledger.add_credit(sharma.id, 15_000)
+
+    rec = Recorder()
+    session = Session(
+        stt=FakeLiveSTT([UTTERANCE]),
+        llm=FakeLLM([]),
+        tts=FakeTTS(),
+        send_json=rec.send_json,
+        send_bytes=rec.send_bytes,
+        stt_language="en-IN",
+        tts_language="hi-en",
+        tts_voice="Poorvi",
+        client_sample_rate=CLIENT_SAMPLE_RATE,
+        ledger=ledger,
+    )
+
+    asyncio.run(session.send_opening_ledger())
+
+    update = rec.first("ledger_update")
+    assert update["customers"] == [{"name": "Sharma ji", "balance_paise": 15_000}]

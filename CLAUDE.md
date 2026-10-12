@@ -91,6 +91,8 @@ uv run python -m scripts.usage                  # what we have spent, against th
 uv run python -m scripts.calibrate              # pick the mic, check the room is quiet enough
 uv run python -m scripts.record                 # record the eval corpus (no API calls)
 uv run python -m scripts.check_corpus           # verify the recordings before trusting them
+uv run python -m scripts.seed                   # fill the ledger with a synthetic shop
+uv run python -m scripts.seed --reset           # wipe and recreate it
 USE_FAKES=true uv run uvicorn app.main:app      # run the whole UI with no API calls
 FAKE_LLM=true uv run uvicorn app.main:app       # real Prisma + Timbre, canned Evon
 uv run python -m eval.run_eval --dry-run        # count planned API calls
@@ -241,15 +243,17 @@ Mark tasks `[x]` as they are completed. `[human]` = Diptanu does this, not Claud
 Evon once it is served on Kaggle (D-001).
 
 ### M2 — Useful agent (Wed Oct 14 – Tue Oct 20)
-- [ ] Ledger schema + repo (customers, transactions, stock)
-- [ ] `nlu/numbers.py` + tests (aim for 50+ cases)
-- [ ] `nlu/names.py` + tests (honorifics: ji, bhaiya, didi, aunty, uncle)
-- [ ] Tools, executor, confirmation gate
-- [ ] Live ledger panel in the UI (`ledger_update` messages)
-- [ ] Seed script with synthetic customers/items
+- [x] Ledger schema + repo (customers, transactions, stock)
+- [x] `nlu/numbers.py` + tests (**188 cases**)
+- [x] `nlu/names.py` + tests (honorifics, and the separation guard in D-023)
+- [x] Tools, executor, confirmation gate
+- [x] Live ledger panel in the UI (`ledger_update` messages)
+- [x] Seed script with synthetic customers/items (`scripts/seed.py`)
 - [ ] [human] Build-in-public post #1 (LinkedIn/X with contest hashtags)
 
 **Done when:** "Sharma ji ka dedh sau udhaar likho" → read-back → "haan" → the ledger updates live.
+✅ Verified Oct 13 against the running server: Rs 400 → "Sharma ji ke khate mein 150
+rupaye udhaar likh doon?" → "haan" → Rs 550, with `ledger_update` pushed to the UI.
 
 ### M3 — Channel + eval baseline (Wed Oct 21 – Tue Oct 27)
 - [ ] `channel/degrade.py` + tests (SNR correctness, μ-law round trip, loss rate statistics)

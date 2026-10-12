@@ -2,6 +2,7 @@
 
 import json
 import logging
+import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -9,6 +10,8 @@ from fastapi.staticfiles import StaticFiles
 
 from app.adapters.factory import build_adapters
 from app.config import get_settings
+from app.ledger.db import connect
+from app.ledger.repo import Ledger
 from app.pipeline.session import Session
 from app.protocol import CLIENT_SAMPLE_RATE, ErrorMessage
 
@@ -41,6 +44,10 @@ async def voice(websocket: WebSocket) -> None:
     await websocket.accept()
     settings = get_settings()
     stt, llm, tts = build_adapters(settings)
+    # One connection per call. SQLite connections are not safe to share across
+    # threads, and a call is short-lived, so this is both simpler and correct.
+    database = connect(settings.db_path)
+    session_id = uuid.uuid4().hex[:8]
     session = Session(
         stt=stt,
         llm=llm,
@@ -51,8 +58,11 @@ async def voice(websocket: WebSocket) -> None:
         tts_language=settings.tts_language,
         tts_voice=settings.tts_voice,
         client_sample_rate=CLIENT_SAMPLE_RATE,
+        ledger=Ledger(database),
+        session_id=session_id,
     )
-    log.info("session open (mode=%s)", _mode(settings))
+    log.info("session %s open (mode=%s, db=%s)", session_id, _mode(settings), settings.db_path)
+    await session.send_opening_ledger()
 
     try:
         while True:
@@ -72,7 +82,8 @@ async def voice(websocket: WebSocket) -> None:
         pass
     finally:
         await session.aclose()
-        log.info("session closed")
+        database.close()
+        log.info("session %s closed", session_id)
 
 
 # Mounted last so API routes take precedence over static files.

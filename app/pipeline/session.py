@@ -19,8 +19,11 @@ from collections.abc import Awaitable, Callable, Sequence
 from contextlib import AsyncExitStack
 from typing import Any
 
-from app.adapters.base import LLM, TTS, Message
+from app.adapters.base import LLM, TTS, LLMReply, Message
+from app.agent.executor import Executor, Outcome
 from app.agent.prompts import SYSTEM_PROMPT
+from app.agent.tools import TOOL_SCHEMAS
+from app.ledger.repo import Ledger
 from app.protocol import (
     AgentTextMessage,
     AudioEndMessage,
@@ -28,6 +31,7 @@ from app.protocol import (
     ConfigMessage,
     ErrorMessage,
     LatencyMessage,
+    LedgerUpdateMessage,
     NoticeMessage,
     ServerMessage,
     State,
@@ -71,6 +75,8 @@ class Session:
         tts_voice: str,
         client_sample_rate: int,
         system_prompt: str = SYSTEM_PROMPT,
+        ledger: Ledger | None = None,
+        session_id: str | None = None,
     ) -> None:
         self._stt = stt
         self._llm = llm
@@ -82,6 +88,10 @@ class Session:
         self._tts_voice = tts_voice
         self._client_sample_rate = client_sample_rate
         self._history: list[Message] = [Message("system", system_prompt)]
+        self._ledger = ledger
+        # Without a ledger the agent can still talk, which is what USE_FAKES does.
+        self._executor = Executor(ledger, session_id=session_id) if ledger is not None else None
+        self._tools = TOOL_SCHEMAS if ledger is not None else ()
 
         self.state = State.IDLE
         self.config = ConfigMessage()
@@ -134,6 +144,10 @@ class Session:
 
     async def _handle_config(self, message: ConfigMessage) -> None:
         self.config = message
+        if self._executor is not None:
+            # No STT confidence exists to key off, so phone mode always spells the
+            # amount out digit by digit (D-004).
+            self._executor.spell_amounts = message.phone_mode
         if message.phone_mode:
             # Honest about scope: channel/degrade.py lands in M3.
             await self._send(NoticeMessage(message="Phone-line mode is not wired up yet (M3)."))
@@ -201,11 +215,22 @@ class Session:
             await self._speak(COULD_NOT_HEAR, speech_end=speech_end, stt_ms=stt_ms)
             return
 
+        # A one-word yes or no to a pending write is answered without Evon (D-006).
+        # About half of all write turns end here, saving an LLM round trip each time.
+        if self._executor is not None and self._executor.has_pending:
+            if (answer := self._executor.handle_user_text(text)) is not None:
+                self._remember("user", text)
+                self._remember("assistant", answer.speech)
+                if answer.ledger_changed:
+                    await self._send_ledger()
+                await self._speak(answer.speech, speech_end=speech_end, stt_ms=stt_ms, llm_ms=0.0)
+                return
+
         await self._set_state(State.THINKING)
         self._remember("user", text)
         llm_start = time.perf_counter()
         try:
-            reply = await self._llm.complete(self._history)
+            reply = await self._llm.complete(self._history, tools=self._tools)
         except Exception as e:
             log.exception("LLM failed")
             await self._send(ErrorMessage(message=f"Evon failed: {e}", spoken=True))
@@ -213,10 +238,46 @@ class Session:
             return
         llm_ms = (time.perf_counter() - llm_start) * 1000
 
-        # M2 replaces this with the executor and the confirmation gate.
-        answer = (reply.text or "").strip() or SOMETHING_BROKE
+        answer = await self._act_on(reply)
         self._remember("assistant", answer)
         await self._speak(answer, speech_end=speech_end, stt_ms=stt_ms, llm_ms=llm_ms)
+
+    async def _act_on(self, reply: LLMReply) -> str:
+        """Run whatever Evon proposed through the executor, and say the result.
+
+        Evon only ever *proposes* (hard rule 5). Nothing reaches the ledger
+        except through `Executor`, which validates, parses the amount in code and
+        holds every write until the shop owner agrees.
+        """
+        if self._executor is None or not reply.tool_calls:
+            return (reply.text or "").strip() or SOMETHING_BROKE
+
+        # One tool per turn: the confirmation gate is a conversation, and two
+        # pending writes cannot both be read back at once.
+        call = reply.tool_calls[0]
+        if len(reply.tool_calls) > 1:
+            log.info("ignoring %d extra tool call(s) this turn", len(reply.tool_calls) - 1)
+
+        if self._executor.has_pending:
+            # Evon proposed something new while a write was waiting; the owner moved on.
+            self._executor.cancel()
+
+        result = self._executor.handle(call)
+        if result.ledger_changed:
+            await self._send_ledger()
+        if result.outcome is Outcome.CONFIRMING:
+            await self._set_state(State.CONFIRMING)
+        return result.speech
+
+    async def send_opening_ledger(self) -> None:
+        """Show the book as soon as the page connects, before anything is said."""
+        await self._send_ledger()
+
+    async def _send_ledger(self) -> None:
+        if self._ledger is None:
+            return
+        snapshot = self._ledger.snapshot()
+        await self._send(LedgerUpdateMessage(**snapshot))
 
     def _log_audio_arrival(self, speech_end: float, transcript: Any, stt_ms: float) -> None:
         """Why stt_ms is what it is: how audio arrived, versus what Prisma reported."""

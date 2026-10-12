@@ -6,23 +6,38 @@ can be exercised without a network, an Evon endpoint, or spending credits.
 
 from typing import Any
 
-from app.adapters.base import LLMReply
+from app.adapters.base import LLMReply, ToolCall
 from app.adapters.evon_llm import EvonLLM
 from app.adapters.fakes import FakeLiveSTT, FakeLLM, FakeTTS
 from app.adapters.gnani_stt_stream import PrismaStreamingSTT
 from app.adapters.gnani_tts import TimbreTTS
 from app.config import Settings
 
-# Enough canned turns to walk through the UI without an API key.
+# A canned conversation that exercises the whole M2 loop without an API key:
+# a write that gets read back and confirmed, a read, and a stock change.
+#
+# Note there is no scripted reply for "haan". The executor answers a pending
+# confirmation in code, without calling the LLM at all (D-006), so the replies
+# below line up with the transcripts that actually reach Evon.
 FAKE_TRANSCRIPTS = [
     "sharma ji ka dedh sau udhaar likho",
-    "gupta aunty ka kitna baaki hai",
+    "haan",
+    "sharma ji ka kitna baaki hai",
     "maggi ke bees packet aaye",
+    "haan",
+    "kya kya khatam ho raha hai",
 ]
-FAKE_REPLIES = [
-    "Abhi main sirf baat kar sakta hoon, khata agle hafte.",
-    "Khata abhi nahi dekh sakta, maaf kijiye.",
-    "Stock abhi nahi likh sakta.",
+FAKE_REPLIES: list[LLMReply] = [
+    LLMReply(
+        tool_calls=(
+            ToolCall("add_credit", {"customer_name": "Sharma ji", "amount_spoken": "dedh sau"}),
+        )
+    ),
+    LLMReply(tool_calls=(ToolCall("get_balance", {"customer_name": "Sharma ji"}),)),
+    LLMReply(
+        tool_calls=(ToolCall("update_stock", {"item": "Maggi", "qty_delta_spoken": "bees"}),)
+    ),
+    LLMReply(tool_calls=(ToolCall("list_low_stock", {}),)),
 ]
 
 
@@ -31,13 +46,13 @@ def build_adapters(settings: Settings) -> tuple[Any, Any, Any]:
     if settings.use_fakes:
         return (
             FakeLiveSTT(FAKE_TRANSCRIPTS * 20),
-            FakeLLM([LLMReply(text=t) for t in FAKE_REPLIES * 20]),
+            FakeLLM(FAKE_REPLIES * 20),
             FakeTTS(sample_rate=settings.tts_sample_rate),
         )
 
     key = settings.gnani_api_key.get_secret_value()
     llm = (
-        FakeLLM([LLMReply(text=t) for t in FAKE_REPLIES * 20])
+        FakeLLM(FAKE_REPLIES * 20)
         if settings.fake_llm
         else EvonLLM(
             base_url=settings.evon_base_url,

@@ -471,3 +471,53 @@ that found it is staying in.
 - **Provisional numbers.** M4 tunes them against the eval, where the trade is
   measurable: every point of CONFIDENT trades silent misattributions against
   needless questions. Until then the bias is deliberately toward asking.
+
+## D-024 — Fractional stock quantities are refused, not rounded
+- **Date:** 2026-10-13 · **Status:** Accepted. Closes risk R6.
+- **The case:** "chini ke saadhe teen kilo bik gaye" - three and a half kilos of
+  loose sugar. Corpus row 160 is this exact utterance, put there deliberately.
+- **Decision:** `items.qty` is an integer and `apply_movement` rejects anything
+  else. The agent says "Abhi main poore number hi likh sakta hoon. Kitne pack?"
+- **Why not support it:** the honest version is not a decimal column. Loose
+  goods need a unit system (grams vs kilos vs packets), a conversion per item,
+  and a way to speak quantities back correctly. That is a feature, and §1 says
+  build the simplest thing that works for the demo.
+- **Why not round:** rounding 3.5 kg to 3 or 4 silently loses or invents stock,
+  and the shop owner has no way to see it happened. Refusing is visible.
+- **The eval will price this.** Row 160 scores as a failure, and M3 reports how
+  many utterances need fractional quantities. That turns a guess into a number,
+  and the README can state the gap with evidence rather than apology.
+
+## D-025 — A new customer is confirmed inside the read-back, not before it
+- **Date:** 2026-10-13 · **Status:** Accepted
+- CLAUDE.md §5 step 4 asks for "Naya customer banaun?" before creating someone.
+  Taken literally that is two questions for one instruction: once to create the
+  customer, again to confirm the amount.
+- **Instead, one question carries both:** "Chaturvedi ji naya customer hai,
+  unke khate mein 150 rupaye udhaar likh doon?" Saying no creates nobody and
+  writes nothing, so the protection the rule exists for is intact, and the turn
+  count halves on what is already a common case.
+- The same shape covers a new stock item ("Lays naya item hai...").
+- **Cost:** the owner cannot accept the customer while rejecting the amount.
+  They say nahi and repeat the line, which is the normal correction path anyway.
+
+## D-026 — Cap BLAS threads: the test suite was being killed by OpenBLAS
+- **Date:** 2026-10-13 · **Status:** Accepted (measured)
+- **Symptom:** `pytest` exited non-zero after printing 36 dots, with no
+  traceback and no failing test named. Running the suite twice gave the same
+  silent death at a different count.
+- **Cause:** `OpenBLAS error: Memory allocation still failed after 10 retries,
+  giving up.` OpenBLAS sizes per-thread scratch buffers from the core count.
+  The dev laptop has 12 logical cores and 7.4 GB of RAM, and was at **98%
+  commit with 0.85 GB free** (Docker Desktop idling at 883 MB). The first
+  `scipy.signal.resample_poly` call could not get its buffers and took the
+  interpreter down with it.
+- **Fix:** `tests/conftest.py` sets `OPENBLAS_NUM_THREADS=1` and the equivalents
+  for OMP, MKL, NumExpr and vecLib, before numpy is imported - they are read
+  once at BLAS initialisation, so a fixture would be too late.
+- **This is not just a test fix.** The work is small-array DSP: resampling a few
+  seconds of speech. Twelve threads of scratch buffers buy nothing and cost
+  setup time. M3 resamples the whole corpus across every condition, where the
+  same crash would have looked like a flaky eval.
+- **Worth knowing for the demo:** this machine runs close to its memory limit.
+  Close Docker before recording.
