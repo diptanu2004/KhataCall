@@ -29,3 +29,6 @@ scripts/out/
 
 # Local spend meter
 scripts/out/usage.jsonl
+
+# Noise downloads before import (scripts/get_noise.py)
+eval/noise/incoming/

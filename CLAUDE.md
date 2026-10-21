@@ -92,6 +92,7 @@ uv run python -m scripts.usage                  # what we have spent, against th
 uv run python -m scripts.calibrate              # pick the mic, check the room is quiet enough
 uv run python -m scripts.record                 # record the eval corpus (no API calls)
 uv run python -m scripts.check_corpus           # verify the recordings before trusting them
+uv run python -m scripts.get_noise              # import noise from eval/noise/incoming/ (docs/NOISE.md)
 uv run python -m scripts.seed                   # fill the ledger with a synthetic shop
 uv run python -m scripts.seed --reset           # wipe and recreate it
 uv run python deploy/make_kaggle_notebook.py    # regenerate the Kaggle notebook that serves Evon
@@ -136,7 +137,7 @@ khatacall/
   eval/
     corpus/scripts.csv   # ground-truth labels (committed)
     corpus/audio/        # recordings (gitignored if large)
-    noise/               # self-recorded background noise
+    noise/               # background noise: Freesound CC0 Indian streets, see noise/SOURCES.md
     conditions.py  normalize.py  metrics.py  run_eval.py  report.py
     cache/  results/
   tests/
@@ -238,7 +239,7 @@ Mark tasks `[x]` as they are completed. `[human]` = Diptanu does this, not Claud
 - [ ] [human] Calibrate the mic once: `uv run python -m scripts.calibrate`
 - [x] Speaker a recorded: 60 takes, median SNR 64 dB, no problems (D-022)
 - [ ] [human] Speakers b and c: `uv run python -m scripts.record --speaker b` (120 lines left)
-- [ ] [human] Record 2-3 min of shop noise: `uv run python -m scripts.record --noise`
+- [ ] [human] Shop noise: download 2-3 CC0 Indian street recordings from Freesound into `eval/noise/incoming/`, then `uv run python -m scripts.get_noise` (docs/NOISE.md, D-033)
 
 **Done when:** speaking a Hinglish sentence produces a spoken Hinglish reply in the browser.
 ✅ Working Oct 8 with real Prisma + real Timbre and canned Evon replies

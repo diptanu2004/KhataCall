@@ -762,3 +762,35 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
   per turn in the UI, and the eval will give the distribution.
 - **A negative STT tail** (-351 ms) on turn 2 is not a bug: the clip ends in
   silence, so Prisma's VAD closed the segment before push-to-talk was released.
+
+## D-033 — Background noise: Indian street recordings from Freesound (CC0), not YouTube
+- **Date:** 2026-10-22 · **Status:** Accepted. Changes the original plan
+  ("self-recorded noise", CLAUDE.md §5). Waiting on the downloads.
+- **The goal is realism.** A kirana counter faces a street: traffic, horns,
+  customers and passers-by talking in Hindi. Background speech in the listener's
+  own language confuses speech recognition more than foreign speech, so
+  European noise would make the eval look easier than a real shop.
+- **Rejected: audio ripped from YouTube.** Plenty of Indian street videos exist,
+  but the audio is copyrighted, downloading it breaks YouTube's terms, and
+  nobody reviewing the eval could get the same files. (An earlier draft of this
+  entry also blamed YouTube's lossy compression. That argument was weak: the
+  noise is band-limited to 3.4 kHz and mu-law coded by the channel simulation
+  afterwards, so codec artefacts in the noise barely matter.)
+- **Chosen: Freesound field recordings licensed CC0.** A search for Indian
+  street and market recordings filtered to CC0 returned 13, almost all lossless
+  (FLAC/WAV, 48 kHz): a Delhi bazaar with traffic, horns and Hindi voices
+  (516655), a Trivandrum street market with tuktuks (263635), an Indian flea
+  market (552692). CC0 means no conditions at all, the pages are stable and
+  citable, and downloading originals is what the site is for (a free account).
+- **Tooling.** `scripts/get_noise.py` imports whatever is dropped into
+  `eval/noise/incoming/`: converts to mono 16 kHz 16-bit and records source
+  and licence in the committed `eval/noise/SOURCES.md`. It traces Freesound
+  files by the sound ID in the download's name, and **refuses to assume a
+  licence**: only IDs whose CC0 status was checked are pre-approved; anything
+  else needs `--license`.
+- **DEMAND kept as an optional reference** (CC BY 4.0, DOI
+  10.5281/zenodo.1227121, the noise behind the VoiceBank-DEMAND benchmark). It
+  was the first plan, but Zenodo served it at 55 KB/s, about half an hour per
+  environment; the first attempt was killed by its own 15-minute timeout with
+  nothing saved. Opt-in via `--demand`, reported separately as a non-Indian
+  reference condition.
