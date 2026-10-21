@@ -73,6 +73,7 @@ print("\\nusing", WORK)
 # 2. Settings. Change QUANT if the model does not fit (see step 6).
 REPO = "luminenio/gnani-evon-v3.3-30B-A3B-GGUF"  # community GGUF of gnani/gnani-evon-v3.3-30B-A3B
 QUANT = "Q4_K_M"  # 24.7 GB. If loading runs out of GPU memory, use "IQ4_XS" (18.4 GB).
+SIZE_GB = {"Q4_K_M": 24.7, "Q4_K_S": 22.1, "IQ4_XS": 18.4, "Q3_K_M": 20.0}.get(QUANT, 0)
 FILE = f"gnani-evon-v3.3-30B-A3B-{QUANT}.gguf"
 MODEL_PATH = f"{WORK}/{FILE}"
 ALIAS = "gnani-evon-v3.3"  # what to put in EVON_MODEL
@@ -87,13 +88,13 @@ print("settings ready:", FILE)
     code(
         """
 # 3. Start the model download in the background. It runs while llama.cpp builds.
-subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-U", "huggingface_hub[hf_transfer]"], check=True)
-
+# Use Kaggle's preinstalled huggingface_hub as-is. Upgrading it to 2.x breaks the
+# preinstalled transformers, datasets and gradio, and 2.x dropped the old
+# hf_transfer extra anyway; the bundled version already downloads quickly.
 download = subprocess.Popen(
     [sys.executable, "-c",
-     "from huggingface_hub import hf_hub_download;"
-     f"hf_hub_download({REPO!r}, {FILE!r}, local_dir={WORK!r})"],
-    env={**os.environ, "HF_HUB_ENABLE_HF_TRANSFER": "1"},
+     "import huggingface_hub as h; print('huggingface_hub', h.__version__, flush=True);"
+     f"h.hf_hub_download({REPO!r}, {FILE!r}, local_dir={WORK!r}); print('done', flush=True)"],
     stdout=open(f"{WORK}/download.log", "w"), stderr=subprocess.STDOUT,
 )
 print("downloading", FILE, "in the background, pid", download.pid)
@@ -118,9 +119,19 @@ ls -la build/bin/llama-server
     code(
         """
 # 5. Wait for the download to finish.
+def downloaded_gb():
+    # The file only appears at MODEL_PATH when complete; until then the bytes sit
+    # in a *.incomplete file under WORK/.cache, so count those too.
+    total = 0
+    for root, _, files in os.walk(WORK):
+        if "llama.cpp" in root:
+            continue
+        total += sum(os.path.getsize(os.path.join(root, f))
+                     for f in files if f.endswith((".gguf", ".incomplete")))
+    return total / 1e9
+
 while download.poll() is None:
-    size = os.path.getsize(MODEL_PATH) / 1e9 if os.path.exists(MODEL_PATH) else 0
-    print(f"\\r  {size:5.1f} GB so far", end="", flush=True)
+    print(f"\\r  {downloaded_gb():5.1f} of ~{SIZE_GB} GB", end="", flush=True)
     time.sleep(10)
 print()
 assert download.returncode == 0, open(f"{WORK}/download.log").read()[-2000:]
