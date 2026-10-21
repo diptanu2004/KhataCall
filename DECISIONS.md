@@ -738,3 +738,27 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
      the system CUDA ones), zips them, and restores them next session with
      `LD_LIBRARY_PATH`. A failed save no longer fails a good build.
   - Harness: 13 of 13 checks across 11 scenarios.
+
+## D-032 — The first fully real conversation: all three Gnani models, real ledger
+- **Date:** 2026-10-22 · **Status:** Measured. M1's and M2's "done when" now
+  hold with real Evon, not canned replies.
+- Two turns replayed through the real server with `scripts/wsclient.py`
+  (`--wav` per turn): the clips were synthesised by Timbre, then went through
+  Prisma (streaming), Evon (Kaggle, through the tunnel), the executor, the
+  ledger, and Timbre again.
+
+| turn | heard | agent | ledger | STT | Evon | first audio | total |
+|---|---|---|---|---|---|---|---|
+| 1 | `sharma ji ka dedh sau udhar likho` | "Sharma ji ke khate mein 150 rupaye udhaar likh doon?" | unchanged | 500 ms | 2527 ms | 842 ms | **3.87 s** |
+| 2 | `haan ji` | "Likh diya. Sharma ji ka ab 550 rupaye baaki hai." | **Rs 400 -> Rs 550** | 216 ms | **0** | 796 ms | **1.03 s** |
+
+- **D-006 earns its keep visibly:** the confirmation never reached Evon, which
+  made that turn nearly four times faster than the one before it.
+- **Spelling drift reached the agent and did no harm:** Prisma wrote "udhar",
+  Evon still proposed the right tool, and the amount came back from the words.
+- **Evon took 2.5 s on turn 1**, against a p50 of 1.23 s on corpus text. One
+  sample: the live prompt carries the conversation history, and the first
+  request of a session may miss llama.cpp's prompt cache. Latency is reported
+  per turn in the UI, and the eval will give the distribution.
+- **A negative STT tail** (-351 ms) on turn 2 is not a bug: the clip ends in
+  silence, so Prisma's VAD closed the segment before push-to-talk was released.

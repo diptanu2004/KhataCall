@@ -87,6 +87,7 @@ uv run python -m scripts.smoke both             # 2 real API calls: Timbre TTS, 
 uv run python -m scripts.latency --dry-run      # count planned calls
 uv run python -m scripts.latency --n 5          # measure warm Gnani latency (10 real calls)
 uv run python -m scripts.wsclient               # drive /ws like the browser, no browser needed
+uv run python -m scripts.wsclient --wav a.wav --wav b.wav  # replay a multi-turn conversation
 uv run python -m scripts.usage                  # what we have spent, against the 5000 grant
 uv run python -m scripts.calibrate              # pick the mic, check the room is quiet enough
 uv run python -m scripts.record                 # record the eval corpus (no API calls)
@@ -229,7 +230,7 @@ Mark tasks `[x]` as they are completed. `[human]` = Diptanu does this, not Claud
 
 ### M1 — End-to-end loop (Thu Oct 8 – Tue Oct 13)
 - [x] **Decision by Fri Oct 9:** Evon hosted vs self-hosted → **Kaggle, self-hosted** (D-001)
-- [x] Evon adapter (see §7) — written and unit-tested; **not yet run against a real endpoint**
+- [x] Evon adapter (see §7) — **verified against real Evon Oct 22**: native tool calls, 92.2% on corpus text (D-031)
 - [x] `/ws` endpoint + session state machine (no tools yet; plain replies)
 - [x] `index.html`: push-to-talk, transcript, agent text, audio playback
 - [x] Per-stage latency timing, sent to the client
@@ -241,8 +242,9 @@ Mark tasks `[x]` as they are completed. `[human]` = Diptanu does this, not Claud
 
 **Done when:** speaking a Hinglish sentence produces a spoken Hinglish reply in the browser.
 ✅ Working Oct 8 with real Prisma + real Timbre and canned Evon replies
-(`FAKE_LLM=true`): total to first audio 1227-1598 ms (D-019). Swap in real
-Evon once it is served on Kaggle (D-001).
+(`FAKE_LLM=true`): total to first audio 1227-1598 ms (D-019).
+✅ **All three real models Oct 22**: Evon served from Kaggle (D-027, D-030),
+first fully real conversation in D-032.
 
 ### M2 — Useful agent (Wed Oct 14 – Tue Oct 20)
 - [x] Ledger schema + repo (customers, transactions, stock)
@@ -256,6 +258,7 @@ Evon once it is served on Kaggle (D-001).
 **Done when:** "Sharma ji ka dedh sau udhaar likho" → read-back → "haan" → the ledger updates live.
 ✅ Verified Oct 13 against the running server: Rs 400 → "Sharma ji ke khate mein 150
 rupaye udhaar likh doon?" → "haan" → Rs 550, with `ledger_update` pushed to the UI.
+✅ Again Oct 22 with **real Evon**: 3.87 s for the request, 1.03 s for "haan" (D-032).
 
 ### M3 — Channel + eval baseline (Wed Oct 21 – Tue Oct 27)
 - [ ] `channel/degrade.py` + tests (SNR correctness, μ-law round trip, loss rate statistics)
