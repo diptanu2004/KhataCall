@@ -191,10 +191,10 @@ else
     # LLAMA_USE_PREBUILT_UI=OFF: skip downloading the server's web UI; KhataCall only
     #   uses the API, and llama.cpp builds fine without it.
     # LLAMA_BUILD_TESTS/EXAMPLES=OFF: less to configure; only llama-server is built.
-    timeout "${CONFIGURE_TIMEOUT:-900}" cmake -B build \
-        -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=75 -DGGML_CUDA_NO_VMM=ON \
-        -DBUILD_SHARED_LIBS=OFF -DLLAMA_USE_PREBUILT_UI=OFF \
-        -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF \
+    timeout "${CONFIGURE_TIMEOUT:-900}" cmake -B build \\
+        -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=75 -DGGML_CUDA_NO_VMM=ON \\
+        -DBUILD_SHARED_LIBS=OFF -DLLAMA_USE_PREBUILT_UI=OFF \\
+        -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF \\
         -DLLAMA_CURL=OFF -DCMAKE_BUILD_TYPE=Release > cmake.log 2>&1 &
     cfg=$!
     cfg_start=$(date +%s)
@@ -211,7 +211,7 @@ else
     date +%s > build.start
     # setsid puts the build in its own session, out of reach of the cell's interrupt.
     # The child records its own pid, then becomes cmake via exec, keeping that pid.
-    setsid bash -c 'echo $$ > build.pid; exec cmake --build build --target llama-server -j "$(nproc)"' \
+    setsid bash -c 'echo $$ > build.pid; exec cmake --build build --target llama-server -j "$(nproc)"' \\
         > build.log 2>&1 < /dev/null &
     for _ in $(seq 1 20); do [ -s build.pid ] && break; sleep 0.5; done
     echo "build started (pid $(cat build.pid)), first progress line in a minute"
