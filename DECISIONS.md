@@ -521,3 +521,71 @@ that found it is staying in.
   same crash would have looked like a flaky eval.
 - **Worth knowing for the demo:** this machine runs close to its memory limit.
   Close Docker before recording.
+
+## D-027 — Evon on Kaggle: a community 4-bit GGUF under llama.cpp, behind a tunnel
+- **Date:** 2026-10-21 · **Status:** Accepted. Refines D-001. Not yet run.
+- **Three facts checked against the Hugging Face API, not the challenge page:**
+  1. **The weights are not gated.** `gnani/gnani-evon-v3.3-30B-A3B` reports
+     `gated: False` with ~35K downloads. The challenge page says to request
+     them; there is nothing to request. The M0 task is moot.
+  2. **The model id in the README's own examples is wrong.**
+     `gnani/gnani-evon-v3.3` does not exist; `gnani/gnani-evon-v3.3-30B-A3B`
+     does. Our config default was already the right one.
+  3. **A community GGUF exists**, `luminenio/gnani-evon-v3.3-30B-A3B-GGUF`,
+     the only quantized child of the official model on the Hub.
+- **Why llama.cpp and not vLLM.** The model card's serving commands assume vLLM
+  or SGLang on H100/A100. The official weights are BF16, ~60 GB; Kaggle's two
+  T4s have 32 GB together. A 4-bit GGUF fits, and llama.cpp supports the
+  `nemotron_h` architecture (Nemotron 3 Nano GGUFs run on it).
+- **Which quantization.** The GGUFs are larger than a dense 30B would suggest,
+  because the Mamba and routing tensors stay at higher precision: Q2_K is
+  already 18.0 GB. Start with **Q4_K_M (24.7 GB)**, leaving ~5 GB across the
+  two cards for compute buffers and the attention layers' KV cache; fall back
+  to **IQ4_XS (18.4 GB)** if loading runs out of memory.
+- **Tool calls.** The model card says Evon supports tool calling (vLLM's
+  `qwen3_coder` parser). llama-server needs `--jinja` to use the model's own
+  template for it. Whether llama.cpp parses Evon's call format natively is the
+  single most important unknown; step 7 of the notebook answers it in one line,
+  and the adapter's prompt-based fallback covers a no.
+- **Thinking off.** The model card documents
+  `chat_template_kwargs: {"enable_thinking": false}`, which is exactly what
+  `EvonLLM` already sends by default. `--reasoning-budget 0` is the server-side
+  backstop if the template ignores it.
+- **Exposure.** A Cloudflare quick tunnel gives a public HTTPS URL with no
+  account. Because it is public, the notebook generates a random API key and
+  llama-server enforces it (`--api-key`); the adapter sends it as a bearer token.
+- **Risk carried forward (R7).** Latency is still unmeasured: T4s are old, and
+  every call crosses the tunnel to Kaggle's region and back. The 0.8 s budget
+  in HLD §12 is a guess until `scripts/evon_check.py` reports p50/p90.
+
+## D-028 — The system prompt is behaviour, and the fake LLM cannot test it
+- **Date:** 2026-10-21 · **Status:** Accepted
+- **What was wrong.** The M1 prompt told the model "Abhi tum khata likh nahi
+  sakte" - you cannot write to the khata yet. M2 added tools and never changed
+  it. Every test stayed green, because the scripted fake LLM returns its tool
+  calls whatever the prompt says. Real Evon would have read the instruction and
+  declined every write.
+- **Fix.** A prompt written for tool use: which tool for which request, names
+  passed with their honorific, amounts passed **as spoken words, never digits**
+  (hard rule 7), and never claiming a write happened, since the executor asks
+  the owner before committing (hard rule 5).
+- **The general point.** Fakes test plumbing, not prompts. Anything the model
+  is told can only be tested against the model, which is why
+  `scripts/evon_check.py` exists: it scores real proposals on corpus text with
+  the same functions the executor uses (`eval/metrics.py`).
+
+## D-029 — Eval outcomes are split three ways: correct, caught, wrong
+- **Date:** 2026-10-21 · **Status:** Accepted
+- Task accuracy alone hides the difference that matters for a ledger:
+  - **caught**: the agent would ask again (amount unparseable, name ambiguous
+    or unknown, no tool call). Annoying, but nothing wrong reaches the read-back.
+  - **wrong**: the agent would read back a *wrong* value with confidence. Only
+    the owner's attention at "haan?" stands between that and the book.
+- A change that turns *wrong* into *caught* is an improvement even if task
+  accuracy does not move, and M4's fixes are judged on that. Any confident
+  wrong value makes the whole row *wrong*, even if something else was caught.
+- `eval/metrics.py` scores with the executor's own functions
+  (`parse_amount_paise`, `parse_signed_quantity`, `match_name`), so a row is
+  correct exactly when the running agent would propose the right write. The
+  "minus das" sign logic moved out of the executor into
+  `nlu.numbers.parse_signed_quantity` so both share one implementation.

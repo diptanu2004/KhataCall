@@ -39,7 +39,7 @@ from app.adapters.base import ToolCall
 from app.agent.tools import WRITE_TOOLS, args_model_for
 from app.ledger.repo import Ledger, LedgerError
 from app.nlu.names import Decision, match_name
-from app.nlu.numbers import parse_amount_paise, parse_number, parse_quantity
+from app.nlu.numbers import parse_amount_paise, parse_number, parse_signed_quantity
 
 log = logging.getLogger(__name__)
 
@@ -206,16 +206,14 @@ class Executor:
     # --- stock ---
 
     def _propose_stock(self, call: ToolCall, args) -> Reply:
-        spoken = args.qty_delta_spoken.strip()
-        negative = spoken.lower().startswith(("minus", "-"))
-        magnitude = parse_quantity(spoken.lstrip("-").removeprefix("minus").removeprefix("Minus").strip())
-        if magnitude is None:
+        signed = parse_signed_quantity(args.qty_delta_spoken)
+        if signed is None:
             return self._say("Kitne? Number samajh nahi aaya.")
-        if magnitude.denominator != 1:
+        if signed.denominator != 1:
             # Loose goods: refused rather than rounded (D-024).
             return self._say("Abhi main poore number hi likh sakta hoon. Kitne pack?")
 
-        qty_delta = -int(magnitude) if negative else int(magnitude)
+        qty_delta = int(signed)
         item = self._ledger.find_item(args.item)
         unit = item.unit if item else "packet"
         direction = "nikal gaye" if qty_delta < 0 else "aaye"

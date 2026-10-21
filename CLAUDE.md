@@ -93,6 +93,8 @@ uv run python -m scripts.record                 # record the eval corpus (no API
 uv run python -m scripts.check_corpus           # verify the recordings before trusting them
 uv run python -m scripts.seed                   # fill the ledger with a synthetic shop
 uv run python -m scripts.seed --reset           # wipe and recreate it
+uv run python deploy/make_kaggle_notebook.py    # regenerate the Kaggle notebook that serves Evon
+uv run python -m scripts.evon_check            # is Evon up, and how good are its tool calls? (no credits)
 USE_FAKES=true uv run uvicorn app.main:app      # run the whole UI with no API calls
 FAKE_LLM=true uv run uvicorn app.main:app       # real Prisma + Timbre, canned Evon
 uv run python -m eval.run_eval --dry-run        # count planned API calls
@@ -215,7 +217,7 @@ Mark tasks `[x]` as they are completed. `[human]` = Diptanu does this, not Claud
 
 ### M0 — Unblock (Tue Oct 6 – Wed Oct 7)
 - [x] [human] Register for the contest; read the IP/ownership terms before accepting
-- [ ] [human] Request Evon v3.3 weights on Hugging Face
+- [x] ~~Request Evon v3.3 weights~~ **Not needed: the weights are not gated** (D-027)
 - [ ] [human] Ask on Gnani's Discord: is a hosted Evon endpoint available to participants? Does it support tool/function calling?
 - [x] [human] Find out how credits are counted → **per audio-hour / per 10k chars** (D-020)
 - [x] Scaffold the repo, pyproject, `.env.example`, adapter Protocols, fakes
@@ -302,9 +304,11 @@ changing adapter behaviour. Key ones:
 
 ### Evon
 
-Evon v3.3 is not on Gnani's API platform: open weights on Hugging Face (by
-request), 30B MoE (~3.5B active), `nemotron_h` architecture. Hosting is
-decision D-001. Build `evon_llm.py` against an
+Evon v3.3 is not on Gnani's API platform: open weights on Hugging Face (**not
+gated**, despite the challenge page), 30B MoE (~3.5B active), `nemotron_h`
+architecture. Served on Kaggle's 2x T4 with llama.cpp from a community 4-bit
+GGUF, through a Cloudflare tunnel (D-001, D-027). Step-by-step:
+`docs/EVON_KAGGLE.md`. Check it with `scripts/evon_check.py`. Build `evon_llm.py` against an
 OpenAI-compatible chat-completions interface; that works for both paths:
 - **Hosted:** use Gnani's endpoint as documented (`# VERIFY:` everything).
 - **Self-hosted:** 4-bit quantized weights served with vLLM (or similar) on a

@@ -30,7 +30,7 @@ a number into someone's ledger that nobody verified.
 import re
 from fractions import Fraction
 
-__all__ = ["normalise", "parse_amount_paise", "parse_number", "parse_quantity"]
+__all__ = ["normalise", "parse_amount_paise", "parse_number", "parse_quantity", "parse_signed_quantity"]
 
 # Guard against a mis-heard word turning into a fortune. A kirana udhaar of over
 # a crore is a transcription error, not a transaction.
@@ -247,6 +247,23 @@ def parse_amount_paise(text: str) -> int | None:
     if not 0 < paise <= MAX_RUPEES * 100:
         return None
     return paise
+
+
+def parse_signed_quantity(text: str) -> Fraction | None:
+    """A stock change: "bees" is +20, "minus das" is -10.
+
+    Shared by the executor and the eval, so the eval scores exactly what the
+    agent would write rather than a reimplementation of it.
+    """
+    stripped = text.strip()
+    lowered = stripped.lower()
+    sign = 1
+    for prefix in ("minus", "-"):
+        if lowered.startswith(prefix):
+            sign, stripped = -1, stripped[len(prefix):].strip()
+            break
+    magnitude = parse_quantity(stripped)
+    return None if magnitude is None else sign * magnitude
 
 
 def parse_quantity(text: str) -> Fraction | None:

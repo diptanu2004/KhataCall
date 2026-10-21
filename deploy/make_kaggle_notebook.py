@@ -1,0 +1,271 @@
+"""Generate deploy/kaggle_evon.ipynb.
+
+    uv run python deploy/make_kaggle_notebook.py
+
+The notebook is generated rather than hand-edited so it stays reviewable as
+plain Python in a diff, and so a malformed cell is caught here (every code
+cell is parsed before writing) instead of twenty minutes into a Kaggle run.
+"""
+
+import ast
+import json
+from pathlib import Path
+
+OUT = Path(__file__).with_name("kaggle_evon.ipynb")
+
+
+def md(text: str) -> dict:
+    return {"cell_type": "markdown", "metadata": {}, "source": text.strip("\n").splitlines(keepends=True)}
+
+
+def code(text: str) -> dict:
+    return {
+        "cell_type": "code",
+        "metadata": {},
+        "execution_count": None,
+        "outputs": [],
+        "source": text.strip("\n").splitlines(keepends=True),
+    }
+
+
+CELLS = [
+    md(
+        """
+# KhataCall: serve Gnani Evon v3.3 on Kaggle
+
+Runs Evon v3.3 (30B MoE, `nemotron_h`) with **llama.cpp** on Kaggle's two T4 GPUs
+and exposes it through a **Cloudflare quick tunnel** as an OpenAI-compatible API.
+KhataCall's `app/adapters/evon_llm.py` talks to it unchanged.
+
+**Before you press Run All**, in the right-hand panel:
+1. **Accelerator: GPU T4 x2** (not P100 - one 16 GB card is too small)
+2. **Internet: On** (needs a phone-verified Kaggle account)
+
+The first run takes roughly **20-30 minutes**: ~15 to build llama.cpp for the
+T4, ~5 to download the 25 GB model (the two overlap), ~2 to load it. At the end,
+step 8 prints three lines to paste into your local `.env`.
+
+Why llama.cpp and not vLLM: the official BF16 weights are ~60 GB and the two
+T4s have 32 GB between them. A 4-bit GGUF fits. See DECISIONS.md D-027.
+"""
+    ),
+    code(
+        """
+# 1. What do we have? Two T4s, and where is the disk space.
+import os, shutil, subprocess, sys, time, json, re, secrets, urllib.request
+
+print(subprocess.run(["nvidia-smi", "--query-gpu=index,name,memory.total", "--format=csv"],
+                     capture_output=True, text=True).stdout)
+
+# /kaggle/working is capped at 20 GB, too small for a 25 GB model. Use the
+# largest scratch directory instead. It is not saved after the session, which is fine.
+candidates = [d for d in ("/kaggle/tmp", "/tmp", "/root") if os.path.isdir(d)]
+for d in candidates + ["/kaggle/working"]:
+    print(f"{d:16} {shutil.disk_usage(d).free / 1e9:6.1f} GB free")
+WORK = max(candidates, key=lambda d: shutil.disk_usage(d).free) + "/evon"
+os.makedirs(WORK, exist_ok=True)
+os.environ["WORK"] = WORK
+print("\\nusing", WORK)
+"""
+    ),
+    code(
+        """
+# 2. Settings. Change QUANT if the model does not fit (see step 6).
+REPO = "luminenio/gnani-evon-v3.3-30B-A3B-GGUF"  # community GGUF of gnani/gnani-evon-v3.3-30B-A3B
+QUANT = "Q4_K_M"  # 24.7 GB. If loading runs out of GPU memory, use "IQ4_XS" (18.4 GB).
+FILE = f"gnani-evon-v3.3-30B-A3B-{QUANT}.gguf"
+MODEL_PATH = f"{WORK}/{FILE}"
+ALIAS = "gnani-evon-v3.3"  # what to put in EVON_MODEL
+CTX = 8192                 # KhataCall's longest prompt is a few thousand tokens
+PORT = 8080
+
+# The tunnel URL is public. This key is what stops anyone else using your GPUs.
+API_KEY = secrets.token_urlsafe(24)
+print("settings ready:", FILE)
+"""
+    ),
+    code(
+        """
+# 3. Start the model download in the background. It runs while llama.cpp builds.
+subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-U", "huggingface_hub[hf_transfer]"], check=True)
+
+download = subprocess.Popen(
+    [sys.executable, "-c",
+     "from huggingface_hub import hf_hub_download;"
+     f"hf_hub_download({REPO!r}, {FILE!r}, local_dir={WORK!r})"],
+    env={**os.environ, "HF_HUB_ENABLE_HF_TRANSFER": "1"},
+    stdout=open(f"{WORK}/download.log", "w"), stderr=subprocess.STDOUT,
+)
+print("downloading", FILE, "in the background, pid", download.pid)
+"""
+    ),
+    code(
+        """
+%%bash
+# 4. Build llama.cpp with CUDA, for the T4 only (compute capability 7.5).
+# Building for one GPU architecture instead of all of them cuts the build several-fold.
+set -e
+nvcc --version | tail -1
+cmake --version | head -1 || pip install -q cmake
+cd "$WORK"
+[ -d llama.cpp ] || git clone --depth 1 https://github.com/ggml-org/llama.cpp
+cd llama.cpp
+cmake -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=75 -DLLAMA_CURL=OFF -DCMAKE_BUILD_TYPE=Release > /dev/null
+cmake --build build --target llama-server -j 4 2>&1 | grep -E "error|Built target llama-server" || true
+ls -la build/bin/llama-server
+"""
+    ),
+    code(
+        """
+# 5. Wait for the download to finish.
+while download.poll() is None:
+    size = os.path.getsize(MODEL_PATH) / 1e9 if os.path.exists(MODEL_PATH) else 0
+    print(f"\\r  {size:5.1f} GB so far", end="", flush=True)
+    time.sleep(10)
+print()
+assert download.returncode == 0, open(f"{WORK}/download.log").read()[-2000:]
+print("downloaded", MODEL_PATH, f"{os.path.getsize(MODEL_PATH) / 1e9:.1f} GB")
+"""
+    ),
+    code(
+        """
+# 6. Start llama-server across both GPUs.
+#   -ngl 99    every layer on the GPUs (split across both by default)
+#   --jinja    use the model's own chat template; REQUIRED for tool calls
+#   --api-key  the key from step 2
+server = subprocess.Popen(
+    [f"{WORK}/llama.cpp/build/bin/llama-server",
+     "-m", MODEL_PATH, "--alias", ALIAS,
+     "--host", "127.0.0.1", "--port", str(PORT),
+     "-ngl", "99", "-c", str(CTX), "--parallel", "1",
+     "--jinja", "--api-key", API_KEY],
+    stdout=open(f"{WORK}/server.log", "w"), stderr=subprocess.STDOUT,
+)
+
+for _ in range(120):
+    if server.poll() is not None:
+        break
+    try:
+        if urllib.request.urlopen(f"http://127.0.0.1:{PORT}/health", timeout=5).status == 200:
+            break
+    except Exception:
+        pass
+    time.sleep(5)
+
+log = open(f"{WORK}/server.log").read()
+if server.poll() is not None or "out of memory" in log.lower():
+    print(log[-3000:])
+    raise SystemExit("llama-server did not start. If it ran out of memory, set "
+                     "QUANT = 'IQ4_XS' in step 2 and re-run from step 2.")
+print("llama-server is up")
+print(subprocess.run(["nvidia-smi", "--query-gpu=index,memory.used,memory.total", "--format=csv"],
+                     capture_output=True, text=True).stdout)
+"""
+    ),
+    code(
+        """
+# 7. One tool call, locally, before exposing anything.
+body = {
+    "model": ALIAS,
+    "messages": [
+        {"role": "system", "content": "Tum ek kirana dukaan ke assistant ho. Amount hamesha shabdon mein do."},
+        {"role": "user", "content": "Sharma ji ka dedh sau udhaar likho"},
+    ],
+    "tools": [{"type": "function", "function": {
+        "name": "add_credit", "description": "Record credit against a customer",
+        "parameters": {"type": "object", "properties": {
+            "customer_name": {"type": "string"}, "amount_spoken": {"type": "string"}},
+            "required": ["customer_name", "amount_spoken"]}}}],
+    "chat_template_kwargs": {"enable_thinking": False},
+    "max_tokens": 200, "temperature": 0.2,
+}
+request = urllib.request.Request(
+    f"http://127.0.0.1:{PORT}/v1/chat/completions", data=json.dumps(body).encode(),
+    headers={"Content-Type": "application/json", "Authorization": f"Bearer {API_KEY}"})
+start = time.time()
+reply = json.load(urllib.request.urlopen(request, timeout=180))
+message = reply["choices"][0]["message"]
+print(f"{time.time() - start:.1f} s")
+print("tool_calls:", json.dumps(message.get("tool_calls"), ensure_ascii=False, indent=1))
+print("content:", repr(message.get("content")))
+# Good: one add_credit call with amount_spoken "dedh sau", and empty content.
+# No tool_calls but JSON in content: run evon_check with --tool-mode prompt.
+"""
+    ),
+    code(
+        """
+# 8. Expose it through a Cloudflare quick tunnel and print the .env lines.
+if not os.path.exists(f"{WORK}/cloudflared"):
+    urllib.request.urlretrieve(
+        "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64",
+        f"{WORK}/cloudflared")
+    os.chmod(f"{WORK}/cloudflared", 0o755)
+
+tunnel = subprocess.Popen(
+    [f"{WORK}/cloudflared", "tunnel", "--no-autoupdate", "--url", f"http://127.0.0.1:{PORT}"],
+    stdout=open(f"{WORK}/tunnel.log", "w"), stderr=subprocess.STDOUT)
+
+url = None
+for _ in range(60):
+    found = re.search(r"https://[a-z0-9-]+\\.trycloudflare\\.com", open(f"{WORK}/tunnel.log").read())
+    if found:
+        url = found.group(0)
+        break
+    time.sleep(2)
+assert url, open(f"{WORK}/tunnel.log").read()[-2000:]
+
+print("Paste these into your local .env. They change every session.\\n")
+print(f"EVON_BASE_URL={url}/v1")
+print(f"EVON_API_KEY={API_KEY}")
+print(f"EVON_MODEL={ALIAS}")
+print("\\nThen run:  uv run python -m scripts.evon_check")
+"""
+    ),
+    code(
+        """
+# 9. Keep this cell running while you use Evon. It keeps the session active and
+# shows the server is alive. Interrupt it, then Stop Session, when you are done:
+# the free quota is 30 GPU-hours a week and an idle server still counts.
+while True:
+    try:
+        ok = urllib.request.urlopen(f"http://127.0.0.1:{PORT}/health", timeout=5).status == 200
+    except Exception:
+        ok = False
+    last = open(f"{WORK}/server.log").read().strip().splitlines()[-1:] or [""]
+    print(time.strftime("%H:%M:%S"), "healthy" if ok else "DOWN", "|", last[0][:100], flush=True)
+    time.sleep(60)
+"""
+    ),
+]
+
+
+def main() -> None:
+    for i, cell in enumerate(CELLS):
+        if cell["cell_type"] != "code":
+            continue
+        source = "".join(cell["source"])
+        if source.startswith("%%"):
+            # A cell magic must be the first line of its cell, or Jupyter treats
+            # the whole cell as Python and fails on the first shell line.
+            continue
+        try:
+            ast.parse(source)
+        except SyntaxError as e:
+            raise SystemExit(f"cell {i} does not parse: {e}") from e
+
+    notebook = {
+        "cells": CELLS,
+        "metadata": {
+            "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
+            "language_info": {"name": "python"},
+        },
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
+    OUT.write_text(json.dumps(notebook, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    code_cells = sum(c["cell_type"] == "code" for c in CELLS)
+    print(f"wrote {OUT.name}: {len(CELLS)} cells ({code_cells} code), all Python cells parse")
+
+
+if __name__ == "__main__":
+    main()

@@ -24,7 +24,9 @@ class Settings(BaseSettings):
     # Evon v3.3 over an OpenAI-compatible /v1/chat/completions API (DECISIONS.md D-001).
     evon_base_url: str = "http://localhost:8001/v1"
     evon_api_key: SecretStr = SecretStr("")
-    # VERIFY: model id taken from a participant repo, not from Gnani; confirm on Hugging Face.
+    # The Hub id, verified (D-027). The README's own examples say gnani/gnani-evon-v3.3,
+    # which does not exist. llama-server ignores this field; the Kaggle notebook
+    # prints the alias it serves under ("gnani-evon-v3.3") for .env.
     evon_model: str = "gnani/gnani-evon-v3.3-30B-A3B"
 
     db_path: str = "khatacall.db"
