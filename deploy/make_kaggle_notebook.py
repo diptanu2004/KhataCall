@@ -130,22 +130,25 @@ set -e
 POLL=${POLL:-60}
 INPUT=${KAGGLE_INPUT:-/kaggle/input}
 SAVE=${KAGGLE_SAVE:-/kaggle/working/llama-bin}
+BIN="$WORK/llama-bin"
 cd "$WORK"
 
-# A binary saved from an earlier session and attached with Add Input?
-if [ ! -x llama-server ]; then
+# A build saved from an earlier session and attached with Add Input? It is the
+# llama-server binary plus any shared libraries saved beside it; LD_LIBRARY_PATH
+# lets the binary find them (step 6 sets it the same way).
+if [ ! -x "$BIN/llama-server" ]; then
     cached=$(find "$INPUT" -name llama-server -type f 2>/dev/null | head -1)
     if [ -n "$cached" ]; then
-        cp "$cached" llama-server && chmod +x llama-server
-        echo "found a saved build: $cached"
+        mkdir -p "$BIN" && cp -r "$(dirname "$cached")"/. "$BIN"/ && chmod +x "$BIN/llama-server"
+        echo "found a saved build: $(dirname "$cached")"
     fi
 fi
-if [ -x llama-server ] && ./llama-server --version > /dev/null 2>&1; then
-    ./llama-server --version 2>&1 | head -1
+if [ -x "$BIN/llama-server" ] && LD_LIBRARY_PATH="$BIN:${LD_LIBRARY_PATH:-}" "$BIN/llama-server" --version > /dev/null 2>&1; then
+    LD_LIBRARY_PATH="$BIN:${LD_LIBRARY_PATH:-}" "$BIN/llama-server" --version 2>&1 | head -1
     echo "ready - no build needed"
     exit 0
 fi
-rm -f llama-server  # missing, or present but will not run here: build it
+rm -rf "$BIN"  # missing, or present but will not run here: build it
 
 [ -d llama.cpp ] || git clone --depth 1 https://github.com/ggml-org/llama.cpp
 cd llama.cpp
@@ -186,12 +189,14 @@ else
     pkill -f "cmake -B build" 2> /dev/null || true
     rm -rf build build.pid
 
-    # Configure in the background as well, printing its latest line every 15 s with a
-    # 15-minute limit, so a slow or stuck configure is visible instead of silent.
+    # Configure in the background as well, printing its latest line every 15 s, so a
+    # slow configure is visible instead of silent. The 45-minute limit only catches a
+    # true hang: a configure on Kaggle has run silently for a long time and still
+    # succeeded, and a tight limit would have killed it (D-030).
     # LLAMA_USE_PREBUILT_UI=OFF: skip downloading the server's web UI; KhataCall only
     #   uses the API, and llama.cpp builds fine without it.
     # LLAMA_BUILD_TESTS/EXAMPLES=OFF: less to configure; only llama-server is built.
-    timeout "${CONFIGURE_TIMEOUT:-900}" cmake -B build \\
+    timeout "${CONFIGURE_TIMEOUT:-2700}" cmake -B build \\
         -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=75 -DGGML_CUDA_NO_VMM=ON \\
         -DBUILD_SHARED_LIBS=OFF -DLLAMA_USE_PREBUILT_UI=OFF \\
         -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF \\
@@ -225,26 +230,34 @@ if [ ! -x build/bin/llama-server ]; then
     exit 1
 fi
 echo "built in $(minutes) min: $PWD/build/bin/llama-server"
-# Only a self-contained binary is worth saving. A build made by an older copy of
-# this cell links llama.cpp's own shared libraries and would not run elsewhere.
-if ldd build/bin/llama-server 2>/dev/null | grep -qE "libllama|libggml"; then
-    echo "(shared-library build from an older copy of this cell: fine for this session, not saved for reuse)"
+
+# Keep it for later sessions: the binary, plus whichever of llama.cpp's own shared
+# libraries it loads (a build from an older copy of this cell has some). ldd lists
+# exactly those, so nothing is missed and nothing extra is copied. Then one zip.
+# Saving is a convenience: if any of it fails, the build above still stands.
+set +e
+rm -rf "$SAVE" && mkdir -p "$SAVE" && cp build/bin/llama-server "$SAVE/"
+ldd build/bin/llama-server 2>/dev/null | awk -v dir="$PWD/build/" 'index($3, dir) == 1 {print $1, $3}' |
+    while read -r name path; do cp -L "$path" "$SAVE/$name"; done
+if ( cd "$(dirname "$SAVE")" && python3 -m zipfile -c "$(basename "$SAVE").zip" "$(basename "$SAVE")" ); then
+    echo "saved for reuse: $(ls "$SAVE" | tr '\\n' ' ')"
+    echo "  zipped as $SAVE.zip ($(du -m "$SAVE.zip" | cut -f1) MB) - see the note below to keep it"
 else
-    mkdir -p "$SAVE" && cp build/bin/llama-server "$SAVE/"
-    echo "saved a reusable copy to $SAVE/llama-server - see the note below to keep it"
+    echo "(could not zip the saved copy; the folder $SAVE is still there to download)"
 fi
+exit 0
 """
     ),
     md(
         """
 **Keep the build for next time (once, optional, saves 30-60 minutes per session).**
-When step 4 says it saved a reusable copy: open the **Output** section of the
-right-hand panel, find `llama-bin/llama-server` under `/kaggle/working`, and
-download it. Then on kaggle.com: **Create, New Dataset**, upload that one file,
-keep it private. In every later session, before Run All, use **Add Input** to
-attach that dataset; step 4 finds it under `/kaggle/input` and skips the build.
-If Kaggle's image changes and the saved binary no longer runs, step 4 notices
-(it test-runs it) and builds again.
+Step 4 ends by writing `/kaggle/working/llama-bin.zip`: the llama-server binary
+plus any shared libraries it needs. Download it from the **Output** section of
+the right-hand panel. Then on kaggle.com: **Create, New Dataset**, upload the
+zip (Kaggle unpacks it), keep it private. In every later session, before Run All,
+use **Add Input** to attach that dataset; step 4 finds it under `/kaggle/input`,
+test-runs it, and skips the build. If a Kaggle image update ever stops it
+running, step 4 notices and builds again.
 """
     ),
     code(
@@ -276,16 +289,20 @@ print("downloaded", MODEL_PATH, f"{os.path.getsize(MODEL_PATH) / 1e9:.1f} GB")
 #   -ngl 99    every layer on the GPUs (split across both by default)
 #   --jinja    use the model's own chat template; REQUIRED for tool calls
 #   --api-key  the key from step 2
-# A saved binary (step 4, from Add Input) if there is one, else this session's build.
-BIN = next(p for p in (f"{WORK}/llama-server", f"{WORK}/llama.cpp/build/bin/llama-server")
+# A saved build (step 4, from Add Input) if there is one, else this session's build.
+# LD_LIBRARY_PATH lets a saved binary find the shared libraries saved beside it.
+SAVED = f"{WORK}/llama-bin"
+BIN = next(p for p in (f"{SAVED}/llama-server", f"{WORK}/llama.cpp/build/bin/llama-server")
            if os.path.exists(p))
+server_env = {**os.environ, "LD_LIBRARY_PATH": f"{SAVED}:{os.environ.get('LD_LIBRARY_PATH', '')}"}
+print("running", BIN)
 server = subprocess.Popen(
     [BIN,
      "-m", MODEL_PATH, "--alias", ALIAS,
      "--host", "127.0.0.1", "--port", str(PORT),
      "-ngl", "99", "-c", str(CTX), "--parallel", "1",
      "--jinja", "--api-key", API_KEY],
-    stdout=open(f"{WORK}/server.log", "w"), stderr=subprocess.STDOUT,
+    env=server_env, stdout=open(f"{WORK}/server.log", "w"), stderr=subprocess.STDOUT,
 )
 
 def healthy():

@@ -725,3 +725,16 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
 - **Latency.** Evon's p50 of 1.23 s through the tunnel replaces the 0.8 s guess
   in HLD §12. With STT ~0.6 s and first TTS audio ~0.8 s, the honest end-to-end
   p50 is about 2.6 s.
+- **Third addendum, after the build succeeded.** The cell was not hung: it
+  configured silently for a long time and then compiled, and Evon came up. The
+  advice to stop it was wrong; letting it run was right. Two consequences:
+  1. **The 15-minute configure limit added in the previous step was itself a
+     hazard**: it could have killed that slow but working configure. Raised to
+     45 minutes. The 15-second progress lines, not the limit, are what tell a
+     slow configure from a stuck one.
+  2. **The build that worked is a shared-library build** from the older cell,
+     which the "reuse a saved binary" feature could not save. Saving now copies
+     the binary plus exactly the llama.cpp libraries `ldd` says it loads (never
+     the system CUDA ones), zips them, and restores them next session with
+     `LD_LIBRARY_PATH`. A failed save no longer fails a good build.
+  - Harness: 13 of 13 checks across 11 scenarios.

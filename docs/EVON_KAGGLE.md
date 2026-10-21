@@ -33,7 +33,7 @@ Import Notebook → upload `deploy/kaggle_evon.ipynb`.
 | Step | Time | What you see while it works |
 |---|---|---|
 | 3 | starts at once | the 24.7 GB download begins in the background |
-| 4 | **30-60 min** first time, seconds with a saved binary | first `configuring, 45 s: <cmake's latest line>` every 15 s (normally 1-3 min, stopped at 15), then `12 min  [ 34%]  mmq-instance-q4_k.cu.o` every minute |
+| 4 | **30-60 min** first time, seconds with a saved binary | first `configuring, 45 s: <cmake's latest line>` every 15 s (1-3 min usually, much longer seen; stopped only at 45), then `12 min  [ 34%]  mmq-instance-q4_k.cu.o` every minute |
 | 5 | usually done by then | `18.3 of ~24.7 GB`, updating every 10 s |
 | 6 | a few minutes | `45 s  <llama-server log line>`, every 15 s |
 | 7 | seconds to a minute | one test tool call, inside Kaggle |
@@ -74,9 +74,10 @@ uv run uvicorn app.main:app      # real Prisma, real Evon, real Timbre
 Every waiting step prints at least once a minute. **A step is only stuck if its
 output stops changing for several minutes.** A step that is merely slow:
 
-- **Step 4, `configuring` for more than a few minutes.** Not normal; configure
-  usually takes one to three. It gives up at 15 minutes and prints the end of
-  `cmake.log`, which says what it was waiting for.
+- **Step 4, `configuring` for a long time.** Slow but possible: one Kaggle
+  configure ran silently for a long stretch and then succeeded. The lines show
+  what it is doing; it only gives up at 45 minutes, printing the end of
+  `cmake.log`.
 - **Step 4, percentage not moving.** Normal. llama.cpp's CUDA backend is 191
   files, and some single files take several minutes in `nvcc`; the percentage
   only moves when a file finishes. The minute counter is what matters: if it
@@ -97,9 +98,10 @@ print(open(f"{WORK}/server.log").read()[-1500:])             # step 6
 
 ## Keeping the build for next time
 
-When step 4 says it saved a reusable copy, download
-`/kaggle/working/llama-bin/llama-server` from the notebook's Output panel, and
-upload it as a **private Kaggle dataset** (Create, New Dataset). In later
+Step 4 ends by writing `/kaggle/working/llama-bin.zip`: the binary plus any
+shared libraries it needs (found with `ldd`, so exactly those). Download it from
+the notebook's Output panel and upload it as a **private Kaggle dataset**
+(Create, New Dataset; Kaggle unpacks the zip). In later
 sessions, attach it with **Add Input** before Run All; step 4 finds it under
 `/kaggle/input`, test-runs it, and skips the build. If a Kaggle image update ever
 stops it running, step 4 notices and builds again.
