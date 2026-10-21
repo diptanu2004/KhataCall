@@ -620,3 +620,27 @@ that found it is staying in.
   `> /dev/null`, and reports progress every minute. The generator now runs
   `bash -n` on the cell, so a shell error is caught locally, not twenty minutes
   into a Kaggle session.
+- **Addendum, same day: the build takes 30-60 minutes, not 15, and the cell has
+  to survive being interrupted.** llama.cpp's CUDA backend is 191 `.cu` files
+  (71 sources plus 120 template instances), several of which take minutes each
+  in `nvcc`, on 4 vCPUs. The first estimate was wrong, and a long silent build
+  reads as a hung one. `GGML_CUDA_FA=OFF` was considered and rejected after
+  reading the CMake file: it only adds a define, and the flash-attention
+  instances are still compiled. Instead:
+  1. **The build runs detached** (`setsid`, pid recorded by the child itself).
+     The earlier cell backgrounded it with `&`, so interrupting the cell left an
+     orphaned compiler running, and a re-run would `rm -rf build` underneath it.
+     Now an interrupt stops only the watching; a re-run resumes, or adopts an
+     orphan from the older cell (found with `pgrep`) rather than deleting it.
+  2. **Every wait prints**: step 4 the elapsed minutes, percentage and current
+     file each minute; step 6 the server's latest log line every 15 seconds
+     (it used to be silent for up to 10 minutes, then claimed success even on
+     timeout).
+  3. **A reusable binary.** `BUILD_SHARED_LIBS=OFF` makes llama-server one
+     self-contained file, copied to `/kaggle/working/llama-bin`. Saved once as
+     a private dataset, it turns the 30-60 minute build into a few seconds in
+     later sessions; step 4 test-runs it and rebuilds if it no longer works.
+  - Verified locally by running the real cell against stand-ins for `cmake`,
+    `nvcc`, `setsid` and `pgrep` through eight paths (fresh build, re-run,
+    saved binary, broken saved binary, configure failure, build failure,
+    interrupt and resume, orphan adoption): 10 of 10 checks pass.

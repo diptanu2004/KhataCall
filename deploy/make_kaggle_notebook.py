@@ -43,9 +43,17 @@ KhataCall's `app/adapters/evon_llm.py` talks to it unchanged.
 1. **Accelerator: GPU T4 x2** (not P100 - one 16 GB card is too small)
 2. **Internet: On** (needs a phone-verified Kaggle account)
 
-The first run takes roughly **20-30 minutes**: ~15 to build llama.cpp for the
-T4, ~5 to download the 25 GB model (the two overlap), ~2 to load it. At the end,
-step 8 prints three lines to paste into your local `.env`.
+**The first run takes 45-75 minutes**, almost all of it step 4 compiling
+llama.cpp's 191 CUDA files on Kaggle's 4 CPU cores. The 25 GB model downloads
+at the same time. Every step that waits prints a line at least once a minute,
+so if a step goes completely silent for several minutes, something is wrong.
+
+**Later sessions can skip the build.** Step 4 leaves the compiled
+`llama-server` in `/kaggle/working/llama-bin/`. Save it as a private Kaggle
+dataset once (see the note after step 4), attach it next time with
+**Add Input**, and step 4 picks it up in seconds.
+
+At the end, step 8 prints three lines to paste into your local `.env`.
 
 Why llama.cpp and not vLLM: the official BF16 weights are ~60 GB and the two
 T4s have 32 GB between them. A 4-bit GGUF fits. See DECISIONS.md D-027.
@@ -105,48 +113,117 @@ print("downloading", FILE, "in the background, pid", download.pid)
     code(
         """
 %%bash
-# 4. Build llama.cpp with CUDA, for the T4 only (compute capability 7.5).
+# 4. Get a llama-server for the T4: from an attached dataset if you saved one,
+#    otherwise build it. The first build takes 30-60 minutes.
 #
 # CMAKE_CUDA_ARCHITECTURES=75: real T4 machine code, and one architecture instead
-#   of a dozen, so the build is several times faster. (The prebuilt release binary
-#   carries the T4 only as 75-virtual PTX, which the driver would JIT-compile on
-#   first use in every session - D-027.)
+#   of a dozen. (The prebuilt release binary carries the T4 only as 75-virtual PTX,
+#   which the driver would JIT-compile on first use in every session - D-030.)
 # GGML_CUDA_NO_VMM=ON: Kaggle's CUDA toolkit has no libcuda.so for CMake to link
 #   ("CUDA::cuda_driver ... target was not found"). Only VMM, a memory-pool
 #   optimisation, needs it; ggml falls back to its ordinary pool allocator.
+# BUILD_SHARED_LIBS=OFF: one self-contained binary, so it can be saved and reused.
+#
+# The build runs DETACHED. Interrupting this cell does not stop or damage it, and
+# running the cell again just resumes watching. It prints a line every minute.
 set -e
+POLL=${POLL:-60}
+INPUT=${KAGGLE_INPUT:-/kaggle/input}
+SAVE=${KAGGLE_SAVE:-/kaggle/working/llama-bin}
 cd "$WORK"
-[ -d llama.cpp ] || git clone --depth 1 https://github.com/ggml-org/llama.cpp
-cd llama.cpp
-if [ -x build/bin/llama-server ]; then
-    echo "already built this session, skipping"
+
+# A binary saved from an earlier session and attached with Add Input?
+if [ ! -x llama-server ]; then
+    cached=$(find "$INPUT" -name llama-server -type f 2>/dev/null | head -1)
+    if [ -n "$cached" ]; then
+        cp "$cached" llama-server && chmod +x llama-server
+        echo "found a saved build: $cached"
+    fi
+fi
+if [ -x llama-server ] && ./llama-server --version > /dev/null 2>&1; then
+    ./llama-server --version 2>&1 | head -1
+    echo "ready - no build needed"
     exit 0
 fi
-nvcc --version | tail -1
-cmake --version | head -1 || pip install -q cmake
+rm -f llama-server  # missing, or present but will not run here: build it
 
-rm -rf build
-if ! cmake -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=75 -DGGML_CUDA_NO_VMM=ON \
-        -DLLAMA_CURL=OFF -DCMAKE_BUILD_TYPE=Release > cmake.log 2>&1; then
-    tail -40 cmake.log
-    exit 1
+[ -d llama.cpp ] || git clone --depth 1 https://github.com/ggml-org/llama.cpp
+cd llama.cpp
+
+started() { cat build.start 2>/dev/null || date +%s; }
+minutes() { echo $(( ($(date +%s) - $(started)) / 60 )); }
+
+watch_build() {
+    while kill -0 "$(cat build.pid 2>/dev/null)" 2>/dev/null; do
+        sleep "$POLL"
+        pct=$(grep -oE '\\[ *[0-9]+%\\]|\\[[0-9]+/[0-9]+\\]' build.log 2>/dev/null | tail -1)
+        file=$(grep -oE 'Building [A-Z]+ object [^ ]+' build.log 2>/dev/null | tail -1 | sed 's#.*/##')
+        echo "  $(minutes) min  $pct  $file"
+    done
+}
+
+# A build with no pid file was started by an older copy of this cell. Adopt it
+# rather than deleting the directory it is still writing into.
+if [ ! -s build.pid ]; then
+    orphan=$(pgrep -of "cmake --build build" || true)
+    if [ -n "$orphan" ]; then
+        echo "$orphan" > build.pid
+        [ -s build.start ] || date +%s > build.start
+    fi
 fi
 
-start=$(date +%s)
-cmake --build build --target llama-server -j 4 > build.log 2>&1 &
-pid=$!
-while kill -0 "$pid" 2>/dev/null; do
-    sleep 60
-    step=$(grep -oE '\\[ *[0-9]+%\\]|\\[[0-9]+/[0-9]+\\]' build.log | tail -1)
-    echo "  building... $step  ($(( ($(date +%s) - start) / 60 )) min)"
-done
-if ! wait "$pid"; then
+if [ -x build/bin/llama-server ] && ! kill -0 "$(cat build.pid 2>/dev/null)" 2>/dev/null; then
+    echo "build already finished"
+elif kill -0 "$(cat build.pid 2>/dev/null)" 2>/dev/null; then
+    echo "a build is already running (pid $(cat build.pid)); watching it"
+    watch_build
+else
+    nvcc --version | tail -1
+    command -v cmake > /dev/null || pip install -q cmake
+    cmake --version | head -1
+    rm -rf build build.pid
+    if ! cmake -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=75 -DGGML_CUDA_NO_VMM=ON \
+            -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF -DCMAKE_BUILD_TYPE=Release > cmake.log 2>&1; then
+        tail -40 cmake.log
+        exit 1
+    fi
+    date +%s > build.start
+    # setsid puts the build in its own session, out of reach of the cell's interrupt.
+    # The child records its own pid, then becomes cmake via exec, keeping that pid.
+    setsid bash -c 'echo $$ > build.pid; exec cmake --build build --target llama-server -j "$(nproc)"' \
+        > build.log 2>&1 < /dev/null &
+    for _ in $(seq 1 20); do [ -s build.pid ] && break; sleep 0.5; done
+    echo "build started (pid $(cat build.pid)), first progress line in a minute"
+    watch_build
+fi
+
+if [ ! -x build/bin/llama-server ]; then
+    echo "BUILD FAILED"
     grep -E "error" build.log | head -20
     tail -20 build.log
     exit 1
 fi
-echo "built in $(( ($(date +%s) - start) / 60 )) min"
-ls -la build/bin/llama-server
+echo "built in $(minutes) min: $PWD/build/bin/llama-server"
+# Only a self-contained binary is worth saving. A build made by an older copy of
+# this cell links llama.cpp's own shared libraries and would not run elsewhere.
+if ldd build/bin/llama-server 2>/dev/null | grep -qE "libllama|libggml"; then
+    echo "(shared-library build from an older copy of this cell: fine for this session, not saved for reuse)"
+else
+    mkdir -p "$SAVE" && cp build/bin/llama-server "$SAVE/"
+    echo "saved a reusable copy to $SAVE/llama-server - see the note below to keep it"
+fi
+"""
+    ),
+    md(
+        """
+**Keep the build for next time (once, optional, saves 30-60 minutes per session).**
+When step 4 says it saved a reusable copy: open the **Output** section of the
+right-hand panel, find `llama-bin/llama-server` under `/kaggle/working`, and
+download it. Then on kaggle.com: **Create, New Dataset**, upload that one file,
+keep it private. In every later session, before Run All, use **Add Input** to
+attach that dataset; step 4 finds it under `/kaggle/input` and skips the build.
+If Kaggle's image changes and the saved binary no longer runs, step 4 notices
+(it test-runs it) and builds again.
 """
     ),
     code(
@@ -173,12 +250,16 @@ print("downloaded", MODEL_PATH, f"{os.path.getsize(MODEL_PATH) / 1e9:.1f} GB")
     ),
     code(
         """
-# 6. Start llama-server across both GPUs.
+# 6. Start llama-server across both GPUs. Loading takes a few minutes; this prints
+#    the server's latest log line every 15 seconds while it does.
 #   -ngl 99    every layer on the GPUs (split across both by default)
 #   --jinja    use the model's own chat template; REQUIRED for tool calls
 #   --api-key  the key from step 2
+# A saved binary (step 4, from Add Input) if there is one, else this session's build.
+BIN = next(p for p in (f"{WORK}/llama-server", f"{WORK}/llama.cpp/build/bin/llama-server")
+           if os.path.exists(p))
 server = subprocess.Popen(
-    [f"{WORK}/llama.cpp/build/bin/llama-server",
+    [BIN,
      "-m", MODEL_PATH, "--alias", ALIAS,
      "--host", "127.0.0.1", "--port", str(PORT),
      "-ngl", "99", "-c", str(CTX), "--parallel", "1",
@@ -186,22 +267,28 @@ server = subprocess.Popen(
     stdout=open(f"{WORK}/server.log", "w"), stderr=subprocess.STDOUT,
 )
 
-for _ in range(120):
-    if server.poll() is not None:
-        break
+def healthy():
     try:
-        if urllib.request.urlopen(f"http://127.0.0.1:{PORT}/health", timeout=5).status == 200:
-            break
+        # /health answers 503 while the model loads, and 200 once it is ready.
+        return urllib.request.urlopen(f"http://127.0.0.1:{PORT}/health", timeout=5).status == 200
     except Exception:
-        pass
+        return False
+
+start, shown = time.time(), 0.0
+while time.time() - start < 20 * 60 and server.poll() is None and not healthy():
+    if time.time() - shown >= 15:
+        lines = open(f"{WORK}/server.log").read().strip().splitlines()
+        print(f"  {time.time() - start:4.0f} s  {lines[-1][:110] if lines else '(starting)'}", flush=True)
+        shown = time.time()
     time.sleep(5)
 
 log = open(f"{WORK}/server.log").read()
-if server.poll() is not None or "out of memory" in log.lower():
+if not healthy():
     print(log[-3000:])
-    raise SystemExit("llama-server did not start. If it ran out of memory, set "
-                     "QUANT = 'IQ4_XS' in step 2 and re-run from step 2.")
-print("llama-server is up")
+    if "out of memory" in log.lower():
+        raise SystemExit("Out of GPU memory. Set QUANT = 'IQ4_XS' in step 2 and re-run from step 2.")
+    raise SystemExit("llama-server is not answering. The log above says why.")
+print(f"llama-server is up after {time.time() - start:.0f} s")
 print(subprocess.run(["nvidia-smi", "--query-gpu=index,memory.used,memory.total", "--format=csv"],
                      capture_output=True, text=True).stdout)
 """

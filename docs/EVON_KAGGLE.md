@@ -1,8 +1,9 @@
 # Running Evon on Kaggle
 
 Evon v3.3 is not on Gnani's API platform, so KhataCall serves it itself on
-Kaggle's free GPUs (DECISIONS.md D-001, D-027). This takes about 30 minutes the
-first time, and about 10 for each later session.
+Kaggle's free GPUs (DECISIONS.md D-001, D-027, D-030). **The first session takes
+45-75 minutes**, nearly all of it compiling llama.cpp. Save the compiled binary
+once (step 4's note) and later sessions take about 10 minutes.
 
 ## What you need
 
@@ -29,13 +30,13 @@ Import Notebook → upload `deploy/kaggle_evon.ipynb`.
 
 **4. Run All.** Then wait. Roughly:
 
-| Step | Time | What happens |
+| Step | Time | What you see while it works |
 |---|---|---|
-| 3 | starts at once | 24.7 GB download begins in the background |
-| 4 | ~15 min | llama.cpp builds with CUDA for the T4 (compute 7.5) |
-| 5 | usually done by then | waits for the download |
-| 6 | ~2 min | loads the model across both GPUs |
-| 7 | seconds | one test tool call, inside Kaggle |
+| 3 | starts at once | the 24.7 GB download begins in the background |
+| 4 | **30-60 min** first time, seconds with a saved binary | `12 min  [ 34%]  mmq-instance-q4_k.cu.o`, a new line every minute |
+| 5 | usually done by then | `18.3 of ~24.7 GB`, updating every 10 s |
+| 6 | a few minutes | `45 s  <llama-server log line>`, every 15 s |
+| 7 | seconds to a minute | one test tool call, inside Kaggle |
 | 8 | seconds | opens the tunnel and prints your `.env` lines |
 
 **5. Read step 7's output before anything else.** You want one `add_credit`
@@ -67,6 +68,38 @@ uv run uvicorn app.main:app      # real Prisma, real Evon, real Timbre
 
 **10. Stop when done:** interrupt step 9, then Stop Session. The free quota is
 30 GPU-hours a week, and an idle server still uses it.
+
+## Does it look stuck?
+
+Every waiting step prints at least once a minute. **A step is only stuck if its
+output stops changing for several minutes.** A step that is merely slow:
+
+- **Step 4, percentage not moving.** Normal. llama.cpp's CUDA backend is 191
+  files, and some single files take several minutes in `nvcc`; the percentage
+  only moves when a file finishes. The minute counter is what matters: if it
+  keeps rising, the build is alive.
+- **Step 4 is safe to interrupt.** The build runs detached. Interrupting the
+  cell stops the *watching*, not the build, and running the cell again resumes
+  watching it. Interrupt it if you need to run something else in the meantime.
+- **Steps 5 and 6 are safe to interrupt too:** the download and the server are
+  background processes. Re-run the cell to resume waiting.
+
+To look underneath any of them, interrupt the cell and run:
+
+```python
+print(open(f"{WORK}/download.log").read()[-800:])            # step 3/5
+print(open(f"{WORK}/llama.cpp/build.log").read()[-1500:])    # step 4
+print(open(f"{WORK}/server.log").read()[-1500:])             # step 6
+```
+
+## Keeping the build for next time
+
+When step 4 says it saved a reusable copy, download
+`/kaggle/working/llama-bin/llama-server` from the notebook's Output panel, and
+upload it as a **private Kaggle dataset** (Create, New Dataset). In later
+sessions, attach it with **Add Input** before Run All; step 4 finds it under
+`/kaggle/input`, test-runs it, and skips the build. If a Kaggle image update ever
+stops it running, step 4 notices and builds again.
 
 ## Reading `evon_check`
 
