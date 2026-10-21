@@ -88,6 +88,12 @@ Results also land in `scripts/out/evon_check.json`.
 
 ## Troubleshooting
 
+**Step 4 fails with `CUDA::cuda_driver ... target was not found`.** Your copy of
+the notebook predates the fix: add `-DGGML_CUDA_NO_VMM=ON` to the `cmake -B build`
+line, or re-import the current `deploy/kaggle_evon.ipynb`. Kaggle's CUDA toolkit
+has no `libcuda.so` for CMake to link, and only the VMM memory pool needs it
+(D-030).
+
 **Step 6 runs out of GPU memory.** Set `QUANT = "IQ4_XS"` in step 2 (18.4 GB
 instead of 24.7) and re-run from step 2. Also, the build directory survives
 within a session, so a rerun skips most of step 4.

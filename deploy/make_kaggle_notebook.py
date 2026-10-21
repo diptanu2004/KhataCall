@@ -9,6 +9,8 @@ cell is parsed before writing) instead of twenty minutes into a Kaggle run.
 
 import ast
 import json
+import shutil
+import subprocess
 from pathlib import Path
 
 OUT = Path(__file__).with_name("kaggle_evon.ipynb")
@@ -104,15 +106,46 @@ print("downloading", FILE, "in the background, pid", download.pid)
         """
 %%bash
 # 4. Build llama.cpp with CUDA, for the T4 only (compute capability 7.5).
-# Building for one GPU architecture instead of all of them cuts the build several-fold.
+#
+# CMAKE_CUDA_ARCHITECTURES=75: real T4 machine code, and one architecture instead
+#   of a dozen, so the build is several times faster. (The prebuilt release binary
+#   carries the T4 only as 75-virtual PTX, which the driver would JIT-compile on
+#   first use in every session - D-027.)
+# GGML_CUDA_NO_VMM=ON: Kaggle's CUDA toolkit has no libcuda.so for CMake to link
+#   ("CUDA::cuda_driver ... target was not found"). Only VMM, a memory-pool
+#   optimisation, needs it; ggml falls back to its ordinary pool allocator.
 set -e
-nvcc --version | tail -1
-cmake --version | head -1 || pip install -q cmake
 cd "$WORK"
 [ -d llama.cpp ] || git clone --depth 1 https://github.com/ggml-org/llama.cpp
 cd llama.cpp
-cmake -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=75 -DLLAMA_CURL=OFF -DCMAKE_BUILD_TYPE=Release > /dev/null
-cmake --build build --target llama-server -j 4 2>&1 | grep -E "error|Built target llama-server" || true
+if [ -x build/bin/llama-server ]; then
+    echo "already built this session, skipping"
+    exit 0
+fi
+nvcc --version | tail -1
+cmake --version | head -1 || pip install -q cmake
+
+rm -rf build
+if ! cmake -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=75 -DGGML_CUDA_NO_VMM=ON \
+        -DLLAMA_CURL=OFF -DCMAKE_BUILD_TYPE=Release > cmake.log 2>&1; then
+    tail -40 cmake.log
+    exit 1
+fi
+
+start=$(date +%s)
+cmake --build build --target llama-server -j 4 > build.log 2>&1 &
+pid=$!
+while kill -0 "$pid" 2>/dev/null; do
+    sleep 60
+    step=$(grep -oE '\\[ *[0-9]+%\\]|\\[[0-9]+/[0-9]+\\]' build.log | tail -1)
+    echo "  building... $step  ($(( ($(date +%s) - start) / 60 )) min)"
+done
+if ! wait "$pid"; then
+    grep -E "error" build.log | head -20
+    tail -20 build.log
+    exit 1
+fi
+echo "built in $(( ($(date +%s) - start) / 60 )) min"
 ls -la build/bin/llama-server
 """
     ),
@@ -250,15 +283,30 @@ while True:
 ]
 
 
+def check_bash(index: int, source: str) -> None:
+    """`bash -n` the body of a %%bash cell, if bash is available here."""
+    bash = shutil.which("bash")
+    if bash is None:
+        print(f"  (no bash on this machine; cell {index} not syntax-checked)")
+        return
+    body = source.split("\n", 1)[1] if "\n" in source else ""
+    result = subprocess.run([bash, "-n"], input=body, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise SystemExit(f"cell {index} is not valid bash:\n{result.stderr}")
+
+
 def main() -> None:
     for i, cell in enumerate(CELLS):
         if cell["cell_type"] != "code":
             continue
         source = "".join(cell["source"])
-        if source.startswith("%%"):
+        if source.startswith("%%bash"):
             # A cell magic must be the first line of its cell, or Jupyter treats
             # the whole cell as Python and fails on the first shell line.
+            check_bash(i, source)
             continue
+        if "%%" in source:
+            raise SystemExit(f"cell {i}: a cell magic must be on the first line")
         try:
             ast.parse(source)
         except SyntaxError as e:

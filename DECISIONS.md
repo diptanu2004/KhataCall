@@ -589,3 +589,34 @@ that found it is staying in.
   correct exactly when the running agent would propose the right write. The
   "minus das" sign logic moved out of the executor into
   `nlu.numbers.parse_signed_quantity` so both share one implementation.
+
+## D-030 — Build llama.cpp from source on Kaggle, with VMM off
+- **Date:** 2026-10-21 · **Status:** Accepted. Refines D-027.
+- **The failure.** The first Kaggle build stopped at CMake configure:
+  `Target "ggml-cuda" links to: CUDA::cuda_driver but the target was not found.`
+  `CUDA::cuda_driver` is CMake's handle for `libcuda.so`, the driver library.
+  Kaggle's CUDA 12.8 toolkit has the runtime and cuBLAS (both were found) but no
+  `libcuda.so` stub where CMake's finder looks.
+- **Read from the source, not guessed.** In
+  `ggml/src/ggml-cuda/CMakeLists.txt`, line 181 links the driver only inside
+  `if (GGML_CUDA_NO_VMM) ... else()`. VMM is a CUDA virtual-memory pool, an
+  optimisation; with `-DGGML_CUDA_NO_VMM=ON` ggml uses its ordinary pool and
+  never links the driver directly (the runtime still loads it at run time).
+  Cost: possibly a little more memory fragmentation in temporary buffers, on a
+  setup that is already tight. If that tips Q4_K_M over the edge, IQ4_XS is the
+  documented fallback.
+- **Why not the prebuilt release binary**, which would skip a ~15 minute build
+  every session: llama.cpp does now publish `ubuntu-cuda-12.8-x64` builds, but
+  - its default architecture list carries Turing as `75-virtual`: PTX only, no
+    T4 machine code. The driver would JIT-compile llama.cpp's GPU kernels on
+    first use, in every fresh session, with an unknown and probably long delay
+    on the first request, which is exactly where latency is measured;
+  - it is compiled in an `nvidia/cuda:*-ubuntu24.04` container, and would not
+    start at all on an older image's glibc.
+  Building with `CMAKE_CUDA_ARCHITECTURES=75` gives real T4 code for one
+  architecture only, and is deterministic.
+- **Notebook hardening that came with it:** step 4 skips the build if a binary
+  already exists this session, prints the real CMake error instead of
+  `> /dev/null`, and reports progress every minute. The generator now runs
+  `bash -n` on the cell, so a shell error is caught locally, not twenty minutes
+  into a Kaggle session.
