@@ -179,3 +179,28 @@ def test_a_spoken_threshold_must_match():
 @pytest.mark.parametrize("missing", [{}, {"threshold_spoken": ""}])
 def test_a_missing_spoken_threshold_is_caught(missing):
     assert score(low_row("5"), ("list_low_stock", missing)).outcome is Outcome.CAUGHT
+
+
+# --- arguments are judged as the executor would judge them -------------------
+# Measured on real Evon: asked "kya kya khatam hone wala hai", it proposed
+# list_low_stock with threshold_spoken="None" - the string, not null.
+
+
+def test_a_none_string_for_an_optional_argument_means_absent():
+    assert score(low_row(), ("list_low_stock", {"threshold_spoken": "None"})).correct
+    assert score(low_row(), ("list_low_stock", {"threshold_spoken": "null"})).correct
+
+
+def test_an_unparseable_threshold_nobody_asked_for_is_caught_not_wrong():
+    """The executor would ask "kitne se kam?" - annoying, but nothing wrong is said."""
+    assert score(low_row(), ("list_low_stock", {"threshold_spoken": "bahut"})).outcome is Outcome.CAUGHT
+
+
+def test_arguments_the_executor_would_reject_are_caught():
+    s = score(row(), ("add_credit", {"customer_name": "", "amount_spoken": "dedh sau"}))
+    assert s.outcome is Outcome.CAUGHT
+    assert "arguments rejected" in s.reasons
+
+
+def test_an_unknown_tool_is_caught():
+    assert score(row(), ("delete_everything", {})).outcome is Outcome.CAUGHT

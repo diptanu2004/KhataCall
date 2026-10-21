@@ -331,3 +331,9 @@ def test_the_session_is_recorded_on_the_entry(agent, seeded):
     agent.handle_user_text("haan")
     entry = seeded.entries(seeded.find_customer("Sharma ji").id)[0]
     assert entry["session_id"] == "call-1"
+
+
+def test_a_none_string_threshold_lists_everything_low(seeded):
+    """Real Evon sent threshold_spoken="None"; that must not trigger "kitne se kam?"."""
+    reply = Executor(seeded).handle(call("list_low_stock", threshold_spoken="None"))
+    assert "Kitne se kam" not in reply.speech

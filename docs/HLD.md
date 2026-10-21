@@ -476,4 +476,4 @@ glance. See DECISIONS.md D-019.
 | R4 | No STT confidence → digit-by-digit confirmation needs a different trigger | Design (D-004) | M2 |
 | R5 | **Largely resolved.** Streaming STT cut the STT leg 17x to ~300 ms (D-016); Timbre first chunk ~857 ms (D-018). Budget revised 1.5 s → 2.3 s. Residual risk is Gnani-side load variance (5142 ms vs 857 ms for the same call), which no code change fixes. | Re-measure before recording the demo | M4 |
 | R6 | Loose goods (dedh kilo chini) need fractional quantities. Integer base units (grams) or out of scope? | Decide in M2 | M2 |
-| R7 | Evon latency on Kaggle 2x T4 is unmeasured and is now the largest unknown term in the budget (800 ms assumed). | Measure as soon as weights land | M1 |
+| ~~R7~~ | **Measured (D-031):** Evon p50 1.23 s, p90 2.48 s through the Kaggle tunnel, against 800 ms assumed. End-to-end p50 is about 2.6 s. | done | Oct 22 |

@@ -1,0 +1,252 @@
+{
+  "what": "Evon v3.3 tool-call accuracy on the corpus as TEXT (perfect transcription): the ceiling for the audio eval",
+  "measured_at": "2026-10-22",
+  "model": "gnani-evon-v3.3 (luminenio Q4_K_M GGUF, llama.cpp, Kaggle 2x T4, via Cloudflare tunnel)",
+  "prompt": "app/agent/prompts.py as of this commit (payment/credit contrast added)",
+  "tool_mode": "native",
+  "n": 180,
+  "counts": {
+    "correct": 166,
+    "caught": 10,
+    "wrong": 4
+  },
+  "rates": {
+    "correct": 0.9222,
+    "caught": 0.0556,
+    "wrong": 0.0222
+  },
+  "digits_converted": 0,
+  "thinking_leaked": 0,
+  "latency_ms": {
+    "p50": 1228.0,
+    "p90": 2484,
+    "max": 19362
+  },
+  "not_correct": [
+    {
+      "id": "017",
+      "text": "Negi bhaiya ka untees rupaye likh do",
+      "intent": "add_credit",
+      "outcome": "caught",
+      "reasons": [
+        "amount unparseable"
+      ],
+      "proposal": {
+        "tool": "add_credit",
+        "arguments": {
+          "customer_name": "Negi bhaiya",
+          "amount_spoken": "unteen"
+        }
+      }
+    },
+    {
+      "id": "061",
+      "text": "Verma bhaiya ne saadhe teen sau diye",
+      "intent": "record_payment",
+      "outcome": "wrong",
+      "reasons": [
+        "intent add_credit instead of record_payment"
+      ],
+      "proposal": {
+        "tool": "add_credit",
+        "arguments": {
+          "customer_name": "Verma bhaiya",
+          "amount_spoken": "saadhe teen sau"
+        }
+      }
+    },
+    {
+      "id": "081",
+      "text": "Ahuja ji ne dedh hazaar de diye",
+      "intent": "record_payment",
+      "outcome": "wrong",
+      "reasons": [
+        "intent add_credit instead of record_payment"
+      ],
+      "proposal": {
+        "tool": "add_credit",
+        "arguments": {
+          "customer_name": "Ahuja ji",
+          "amount_spoken": "dedh hazaar"
+        }
+      }
+    },
+    {
+      "id": "083",
+      "text": "Nigam ji ne ikkees rupaye wapas kiye",
+      "intent": "record_payment",
+      "outcome": "caught",
+      "reasons": [
+        "amount unparseable"
+      ],
+      "proposal": {
+        "tool": "record_payment",
+        "arguments": {
+          "customer_name": "Nigam ji",
+          "amount_spoken": "ikkes"
+        }
+      }
+    },
+    {
+      "id": "087",
+      "text": "Sharma ji ka hisaab chukta, aath sau mile",
+      "intent": "record_payment",
+      "outcome": "caught",
+      "reasons": [
+        "amount unparseable"
+      ],
+      "proposal": {
+        "tool": "record_payment",
+        "arguments": {
+          "customer_name": "Sharma ji",
+          "amount_spoken": "aath sau mile"
+        }
+      }
+    },
+    {
+      "id": "089",
+      "text": "Verma ji ne aadha de diya, teen sau",
+      "intent": "record_payment",
+      "outcome": "wrong",
+      "reasons": [
+        "intent add_credit instead of record_payment",
+        "amount unparseable"
+      ],
+      "proposal": {
+        "tool": "add_credit",
+        "arguments": {
+          "customer_name": "Verma ji",
+          "amount_spoken": "aadha de diya, teen sau"
+        }
+      }
+    },
+    {
+      "id": "099",
+      "text": "Sethi ji ne ninyaanve rupaye diye",
+      "intent": "record_payment",
+      "outcome": "wrong",
+      "reasons": [
+        "intent add_credit instead of record_payment"
+      ],
+      "proposal": {
+        "tool": "add_credit",
+        "arguments": {
+          "customer_name": "Sethi ji",
+          "amount_spoken": "ninyaanve"
+        }
+      }
+    },
+    {
+      "id": "133",
+      "text": "chini ke paanch kilo aaye",
+      "intent": "update_stock",
+      "outcome": "caught",
+      "reasons": [
+        "quantity unparseable"
+      ],
+      "proposal": {
+        "tool": "update_stock",
+        "arguments": {
+          "item": "chini",
+          "qty_delta_spoken": "paanch kilo"
+        }
+      }
+    },
+    {
+      "id": "151",
+      "text": "besan ke char kilo aaye",
+      "intent": "update_stock",
+      "outcome": "caught",
+      "reasons": [
+        "quantity unparseable"
+      ],
+      "proposal": {
+        "tool": "update_stock",
+        "arguments": {
+          "item": "besan",
+          "qty_delta_spoken": "char kilo"
+        }
+      }
+    },
+    {
+      "id": "152",
+      "text": "poha ke chhe kilo bik gaye",
+      "intent": "update_stock",
+      "outcome": "caught",
+      "reasons": [
+        "quantity unparseable"
+      ],
+      "proposal": {
+        "tool": "update_stock",
+        "arguments": {
+          "item": "poha",
+          "qty_delta_spoken": "minus chhe kilo"
+        }
+      }
+    },
+    {
+      "id": "153",
+      "text": "sooji ke aath kilo aaye",
+      "intent": "update_stock",
+      "outcome": "caught",
+      "reasons": [
+        "quantity unparseable"
+      ],
+      "proposal": {
+        "tool": "update_stock",
+        "arguments": {
+          "item": "sooji",
+          "qty_delta_spoken": "aath kilo"
+        }
+      }
+    },
+    {
+      "id": "154",
+      "text": "Bournvita ke paanch jar aaye",
+      "intent": "update_stock",
+      "outcome": "caught",
+      "reasons": [
+        "quantity unparseable"
+      ],
+      "proposal": {
+        "tool": "update_stock",
+        "arguments": {
+          "item": "Bournvita",
+          "qty_delta_spoken": "paanch jar"
+        }
+      }
+    },
+    {
+      "id": "155",
+      "text": "shampoo ke saath sachet aaye",
+      "intent": "update_stock",
+      "outcome": "caught",
+      "reasons": [
+        "quantity unparseable"
+      ],
+      "proposal": {
+        "tool": "update_stock",
+        "arguments": {
+          "item": "shampoo",
+          "qty_delta_spoken": "one sachet"
+        }
+      }
+    },
+    {
+      "id": "159",
+      "text": "maida ke do bori aaye",
+      "intent": "update_stock",
+      "outcome": "caught",
+      "reasons": [
+        "quantity unparseable"
+      ],
+      "proposal": {
+        "tool": "update_stock",
+        "arguments": {
+          "item": "maida",
+          "qty_delta_spoken": "do bori"
+        }
+      }
+    }
+  ]
+}

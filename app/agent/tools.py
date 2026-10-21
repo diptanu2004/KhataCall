@@ -17,7 +17,23 @@ options in one shot.
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, BeforeValidator, Field, StringConstraints
+
+
+def _absent_if_null_word(value: object) -> object:
+    """Treat "None", "null", "" for an optional argument as not given.
+
+    Measured, not hypothetical: asked "kya kya khatam hone wala hai", Evon
+    proposed list_low_stock with threshold_spoken="None" - the string. Read
+    literally that is an unparseable number and the agent would ask
+    "kitne se kam?" for no reason.
+    """
+    if isinstance(value, str) and value.strip().lower() in ("", "none", "null", "nil", "undefined"):
+        return None
+    return value
+
+
+OptionalSpoken = Annotated[str | None, BeforeValidator(_absent_if_null_word)]
 
 __all__ = [
     "TOOLS",
@@ -47,7 +63,7 @@ class AddCredit(BaseModel):
             "'saadhe teen sau'. Never convert it to digits and never do arithmetic."
         )
     )
-    note: str | None = Field(default=None, max_length=200, description="What it was for, if said")
+    note: OptionalSpoken = Field(default=None, max_length=200, description="What it was for, if said")
 
 
 class RecordPayment(BaseModel):
@@ -86,10 +102,13 @@ class GetStock(BaseModel):
 class ListLowStock(BaseModel):
     """List items that are running out and need reordering."""
 
-    threshold_spoken: str | None = Field(
+    threshold_spoken: OptionalSpoken = Field(
         default=None,
         max_length=60,
-        description="A spoken cut-off if one was said, e.g. 'paanch' in 'paanch se kam kya hai'",
+        description=(
+            "A spoken cut-off only if one was said, e.g. 'paanch' in 'paanch se kam kya hai'. "
+            "Leave it out entirely when none was said."
+        ),
     )
 
 

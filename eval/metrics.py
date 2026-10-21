@@ -26,6 +26,9 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
+from pydantic import ValidationError
+
+from app.agent.tools import args_model_for
 from app.nlu.names import Decision, match_name
 from app.nlu.numbers import normalise, parse_amount_paise, parse_number, parse_signed_quantity
 
@@ -88,6 +91,18 @@ def score_call(
     if tool_name is None:
         return Score(Outcome.CAUGHT, intent_ok=False, reasons=("no tool call",), details=details)
 
+    # Validate exactly as the executor does. Arguments it would reject make it ask
+    # again, and normalisation it applies (e.g. "None" -> absent) must apply here too.
+    model = args_model_for(tool_name)
+    if model is None:
+        return Score(Outcome.CAUGHT, intent_ok=False, reasons=(f"unknown tool {tool_name}",), details=details)
+    try:
+        args = model.model_validate(args).model_dump()
+    except ValidationError:
+        return Score(
+            Outcome.CAUGHT, intent_ok=tool_name == expected, reasons=("arguments rejected",), details=details
+        )
+
     intent_ok = tool_name == expected
     if not intent_ok:
         reasons.append(f"intent {tool_name} instead of {expected}")
@@ -148,9 +163,12 @@ def score_call(
         spoken = args.get("threshold_spoken")
         expected_threshold = row.get("qty") or None
         if expected_threshold is None:
+            invented = parse_number(str(spoken)) if spoken else None
             qty_ok = not spoken
-            if spoken:
+            if invented is not None:
                 reasons.append(f"invented a threshold: {spoken}")
+            elif spoken:
+                caught.append(f"unparseable threshold {spoken!r}")  # the executor would ask
         else:
             value = parse_number(str(spoken)) if spoken else None
             qty_ok = value is not None and float(value) == float(expected_threshold)

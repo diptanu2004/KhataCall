@@ -672,3 +672,56 @@ that found it is staying in.
     signals the whole process group, so this is a property of the test host,
     not the cell; the fake now `exec`s into `sleep`. 12 of 12 checks across 10
     scenarios pass.
+
+## D-031 — First real Evon results: 92% on text, and the failures ranked
+- **Date:** 2026-10-22 · **Status:** Measured. Baseline committed as
+  `eval/results/evon_text_baseline_2026-10-22.json`.
+- **Setup:** Evon v3.3, community Q4_K_M GGUF, llama.cpp on Kaggle 2x T4,
+  reached through a Cloudflare tunnel. All 180 corpus sentences sent **as
+  text**, so transcription is perfect: this is the ceiling the audio eval
+  cannot beat. Scored with `eval/metrics.py`, which judges proposals with the
+  executor's own validation, parser and name matcher.
+- **The question that decided the design is answered: Evon does native tool
+  calls through llama.cpp** (`--jinja`). The notebook's single test returned
+  `add_credit(customer_name="Sharma ji", amount_spoken="dedh sau")` with empty
+  content in 1.8 s. The prompt-based fallback in CLAUDE.md §7 is not needed.
+
+| | |
+|---|---|
+| correct | **166 / 180 (92.2%)** |
+| caught (would ask again) | 10 (5.6%) |
+| **wrong** (confident bad read-back) | **4 (2.2%)** |
+| amounts converted to digits (rule 7) | **0** |
+| thinking visible | **0** |
+| latency, through the tunnel | p50 **1.23 s**, p90 2.48 s, one outlier at 19.4 s |
+
+By intent: get_balance 25/25, get_stock 12/12, list_low_stock 8/8,
+add_credit 59/60, record_payment 39/45, update_stock 23/30.
+
+**Failure modes, ranked by harm (M4's list):**
+1. **Payment booked as credit - all 4 wrong rows** (061, 081, 089, 099):
+   "Verma bhaiya **ne** saadhe teen sau **diye**" proposed as `add_credit`.
+   The worst error a ledger can make: the balance moves the wrong way by twice
+   the amount, and only the owner noticing "udhaar" in the read-back stops it.
+   A prompt that spells out the "ne ... diye" cue (added before this run) did
+   not fix it, so the fix has to be deterministic: when the transcript carries
+   payment grammar and the proposal is a credit, ask "udhaar ya payment?"
+   instead of reading back. That turns wrong into caught (D-029).
+2. **Quantities with units are unparseable - 7 caught.** Evon passes
+   "paanch kilo", "do bori", "paanch jar"; `parse_quantity` refuses unit words.
+   A gap in our parser, found by real model output. Safe today (the agent asks)
+   but it fails a quarter of stock updates.
+3. **Amounts with extra words or drifted spelling - 3 caught.** "aath sau mile"
+   (the verb came along), "ikkes" for ikkees, "unteen" for untees. Safe, fixable
+   in the parser's ignore list and variant tables - but carefully: "ten" and
+   "teen" must stay apart, so no blanket e/i folding.
+- **Fixed before the run, because they were defects rather than findings:**
+  Evon sent `threshold_spoken="None"` as a *string*, so optional arguments now
+  treat "None"/"null" as absent; and the scorer, which had called that row
+  "wrong", now validates arguments exactly as the executor does (it would
+  have asked again, i.e. "caught").
+- **Deliberately not fixed yet.** This run is the "before" in M4's
+  before/after chart. Fixing first would leave nothing to compare against.
+- **Latency.** Evon's p50 of 1.23 s through the tunnel replaces the 0.8 s guess
+  in HLD §12. With STT ~0.6 s and first TTS audio ~0.8 s, the honest end-to-end
+  p50 is about 2.6 s.
