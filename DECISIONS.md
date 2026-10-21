@@ -644,3 +644,31 @@ that found it is staying in.
     `nvcc`, `setsid` and `pgrep` through eight paths (fresh build, re-run,
     saved binary, broken saved binary, configure failure, build failure,
     interrupt and resume, orphan adoption): 10 of 10 checks pass.
+- **Second addendum: a silent configure.** The cell given in chat ran CMake's
+  configure with all output sent to `cmake.log`, then printed progress only
+  during the build. On Kaggle it showed nothing at all, which looked like a hang
+  and may have been one; the earlier reply claiming "a line every minute" was
+  wrong for that phase.
+  - **What the silence proves.** IPython's `%%bash` reads output in 100-byte
+    chunks and flushes each to the notebook as it arrives
+    (`IPython/core/magics/script.py`). So a cell printing nothing had not
+    reached its progress loop: it was still in configure.
+  - **What configure fetches, checked rather than assumed:** CCCL only if
+    `GGML_CUDA_CCCL_VERSION` is set (it is empty by default); BoringSSL and
+    LibreSSL only if explicitly requested; but `LLAMA_USE_PREBUILT_UI`
+    **defaults on** and downloads the server's web UI from a Hugging Face
+    bucket, competing with the 25 GB model download. With it off, llama.cpp
+    warns "building without an embedded UI" and builds anyway, and KhataCall
+    only uses the API.
+  - **Fix:** configure now runs in the background like the build, printing its
+    latest log line every 15 seconds, under a 15-minute `timeout` that prints
+    the end of `cmake.log` on failure. It runs with `LLAMA_USE_PREBUILT_UI=OFF`
+    and without tests and examples, and first kills any configure an older copy
+    of the cell left running. The real cause on Kaggle is still unconfirmed:
+    the next run's 15-second lines, or `cmake.log`, will show it.
+  - **Testing note.** The first local run of the extended harness hung. Git
+    Bash's `timeout` killed the fake configure script but not the `sleep` it
+    had started, and the orphan held the output pipe open. Linux's `timeout`
+    signals the whole process group, so this is a property of the test host,
+    not the cell; the fake now `exec`s into `sleep`. 12 of 12 checks across 10
+    scenarios pass.

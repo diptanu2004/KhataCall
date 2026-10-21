@@ -181,12 +181,33 @@ else
     nvcc --version | tail -1
     command -v cmake > /dev/null || pip install -q cmake
     cmake --version | head -1
+
+    # A configure left running by an older copy of this cell would race with this one.
+    pkill -f "cmake -B build" 2> /dev/null || true
     rm -rf build build.pid
-    if ! cmake -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=75 -DGGML_CUDA_NO_VMM=ON \
-            -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF -DCMAKE_BUILD_TYPE=Release > cmake.log 2>&1; then
+
+    # Configure in the background as well, printing its latest line every 15 s with a
+    # 15-minute limit, so a slow or stuck configure is visible instead of silent.
+    # LLAMA_USE_PREBUILT_UI=OFF: skip downloading the server's web UI; KhataCall only
+    #   uses the API, and llama.cpp builds fine without it.
+    # LLAMA_BUILD_TESTS/EXAMPLES=OFF: less to configure; only llama-server is built.
+    timeout "${CONFIGURE_TIMEOUT:-900}" cmake -B build \
+        -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=75 -DGGML_CUDA_NO_VMM=ON \
+        -DBUILD_SHARED_LIBS=OFF -DLLAMA_USE_PREBUILT_UI=OFF \
+        -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF \
+        -DLLAMA_CURL=OFF -DCMAKE_BUILD_TYPE=Release > cmake.log 2>&1 &
+    cfg=$!
+    cfg_start=$(date +%s)
+    while kill -0 "$cfg" 2> /dev/null; do
+        sleep "${POLL_CONFIGURE:-15}"
+        echo "  configuring, $(( $(date +%s) - cfg_start )) s: $(tail -1 cmake.log 2> /dev/null | cut -c1-100)"
+    done
+    if ! wait "$cfg"; then
+        echo "CONFIGURE FAILED (or hit the time limit). The end of cmake.log:"
         tail -40 cmake.log
         exit 1
     fi
+    echo "configured in $(( $(date +%s) - cfg_start )) s"
     date +%s > build.start
     # setsid puts the build in its own session, out of reach of the cell's interrupt.
     # The child records its own pid, then becomes cmake via exec, keeping that pid.
