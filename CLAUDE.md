@@ -190,7 +190,9 @@ Also handle English words, digits, mixed forms ("2 hazaar 500", "dedh sau"),
 
 ### Channel degradation (`channel/degrade.py`)
 Order matters — noise happens in the shop, before the phone network:
-1. Mix background noise at target SNR (computed on active-speech power)
+1. Mix background noise at target SNR (computed on active-speech power, and on
+   the power of the noise segment actually used: the flea-market clip varies
+   12 dB between quiet and busy stretches, so a file-level average would mislabel SNR)
 2. Band-limit to 300–3400 Hz, resample to 8 kHz (`resample_poly`)
 3. G.711 μ-law encode/decode (implement in numpy; `audioop` is gone in 3.13)
 4. Packet loss on 20 ms frames (160 samples), Gilbert-Elliott bursty model;
@@ -239,7 +241,7 @@ Mark tasks `[x]` as they are completed. `[human]` = Diptanu does this, not Claud
 - [ ] [human] Calibrate the mic once: `uv run python -m scripts.calibrate`
 - [x] Speaker a recorded: 60 takes, median SNR 64 dB, no problems (D-022)
 - [ ] [human] Speakers b and c: `uv run python -m scripts.record --speaker b` (120 lines left)
-- [ ] [human] Shop noise: download 2-3 CC0 Indian street recordings from Freesound into `eval/noise/incoming/`, then `uv run python -m scripts.get_noise` (docs/NOISE.md, D-033)
+- [x] Shop noise: 3 CC0 Indian street recordings from Freesound, 4.8 min (Delhi bazaar, Trivandrum market, flea market); `eval/noise/SOURCES.md` (D-033)
 
 **Done when:** speaking a Hinglish sentence produces a spoken Hinglish reply in the browser.
 ✅ Working Oct 8 with real Prisma + real Timbre and canned Evon replies

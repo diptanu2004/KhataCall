@@ -80,6 +80,30 @@ def to_mono_16k(samples: np.ndarray, rate: int) -> np.ndarray:
     return np.clip(mono, -1.0, 1.0).astype(np.float32)
 
 
+SILENT_EDGE_DBFS = -45.0
+EDGE_WINDOW_MS = 100
+
+
+def trim_silent_edges(mono: np.ndarray, rate: int = TARGET_RATE) -> tuple[np.ndarray, float, float]:
+    """Cut near-silent stretches from the start and end; return (audio, cut_start_s, cut_end_s).
+
+    Recordings often fade in or out. The flea-market clip ends in a full second of
+    digital silence. The eval cuts random stretches from these files and scales each
+    to a target SNR, so a cut landing in silence would make a "10 dB" condition
+    almost noise-free - or, scaled up, pure amplified hiss.
+    """
+    window = max(1, rate * EDGE_WINDOW_MS // 1000)
+    usable = mono[: len(mono) - len(mono) % window]
+    if not len(usable):
+        return mono, 0.0, 0.0
+    energy = np.sqrt((usable.reshape(-1, window).astype(np.float64) ** 2).mean(axis=1))
+    loud = np.flatnonzero(20 * np.log10(energy + 1e-12) > SILENT_EDGE_DBFS)
+    if not len(loud):
+        return mono[:0], len(mono) / rate, 0.0
+    start, end = loud[0] * window, (loud[-1] + 1) * window
+    return mono[start:end], start / rate, (len(mono) - end) / rate
+
+
 def describe(path: Path) -> tuple[str, str, str, str]:
     """(output name, source, licence, description) for an incoming file."""
     stem = path.stem
@@ -138,14 +162,15 @@ def import_incoming(args) -> int:
             print(f"    -> {name}  ({licence})")
             continue
         samples, rate = sf.read(path, dtype="float32", always_2d=True)
-        mono = to_mono_16k(samples, rate)
-        if float(np.abs(mono).max()) == 0.0:
-            print("    silent file, skipped")
+        mono, cut_start, cut_end = trim_silent_edges(to_mono_16k(samples, rate))
+        if len(mono) < MIN_SECONDS * TARGET_RATE:
+            print(f"    only {len(mono) / TARGET_RATE:.0f} s left after trimming silent edges, skipped")
             failed = True
             continue
         sf.write(NOISE_DIR / name, mono, TARGET_RATE, subtype="PCM_16")
         rows[name] = f"| `{name}` | {source} | {licence} | {description} |"
-        print(f"    -> {name}  ({len(mono) / TARGET_RATE:.0f} s at 16 kHz mono)")
+        trimmed = f", trimmed {cut_start:.1f} s + {cut_end:.1f} s of silent edges" if cut_start or cut_end else ""
+        print(f"    -> {name}  ({len(mono) / TARGET_RATE:.0f} s at 16 kHz mono{trimmed})")
 
     if not args.dry_run:
         write_rows(rows)

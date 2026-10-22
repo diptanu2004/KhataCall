@@ -764,8 +764,8 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
   silence, so Prisma's VAD closed the segment before push-to-talk was released.
 
 ## D-033 — Background noise: Indian street recordings from Freesound (CC0), not YouTube
-- **Date:** 2026-10-22 · **Status:** Accepted. Changes the original plan
-  ("self-recorded noise", CLAUDE.md §5). Waiting on the downloads.
+- **Date:** 2026-10-22 · **Status:** Done. Changes the original plan
+  ("self-recorded noise", CLAUDE.md §5).
 - **The goal is realism.** A kirana counter faces a street: traffic, horns,
   customers and passers-by talking in Hindi. Background speech in the listener's
   own language confuses speech recognition more than foreign speech, so
@@ -794,3 +794,11 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
   environment; the first attempt was killed by its own 15-minute timeout with
   nothing saved. Opt-in via `--demand`, reported separately as a non-Indian
   reference condition.
+- **Imported, and measured before trusting it:** 4.8 minutes across three
+  files, all CC0. Delhi (87 s) and Trivandrum (68 s) are steady: 5-6 dB
+  between the 10th and 90th percentile one-second levels. The flea market
+  (135 s) varies 12 dB, and ended in a fade to a full second of digital
+  silence. The importer now trims silent edges (below -45 dBFS) from every
+  file, which took 1.3 s off that one. The variability that remains is real,
+  so the channel simulation must compute SNR on the noise segment it actually
+  uses, not a file-wide average.

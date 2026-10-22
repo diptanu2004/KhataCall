@@ -84,6 +84,29 @@ def test_reimporting_keeps_one_row_per_file(noise_dirs):
     assert len(rows) == 1
 
 
+def test_silent_edges_are_trimmed_but_the_middle_is_kept():
+    """The flea-market clip ends in a second of digital silence; trim it, and only it."""
+    sr = 16_000
+    loud = (0.05 * RNG.standard_normal(10 * sr)).astype("float32")
+    quiet_middle = (0.05 * RNG.standard_normal(2 * sr) * 0.1).astype("float32")  # -20 dB, not silent
+    audio = np.concatenate([np.zeros(sr // 2), loud, quiet_middle, loud, np.zeros(sr)]).astype("float32")
+
+    trimmed, cut_start, cut_end = gn.trim_silent_edges(audio)
+
+    assert cut_start == pytest.approx(0.5, abs=0.1)
+    assert cut_end == pytest.approx(1.0, abs=0.1)
+    assert len(trimmed) == pytest.approx(22 * sr, abs=sr // 10)
+
+
+def test_a_clip_that_is_mostly_silence_is_refused(noise_dirs):
+    sr = 48_000
+    data = np.zeros((40 * sr, 1), dtype="float32")
+    data[: 5 * sr, 0] = 0.1 * RNG.standard_normal(5 * sr)  # 5 s of sound, 35 s of silence
+    sf.write(noise_dirs / "incoming" / "516655__soundensemble__mostly_silent.wav", data, sr)
+    assert run() == 1
+    assert not (noise_dirs / "freesound_516655.wav").exists()
+
+
 def test_downmix_and_resample_preserve_the_level():
     rate = 48_000
     t = np.arange(rate * 2) / rate
