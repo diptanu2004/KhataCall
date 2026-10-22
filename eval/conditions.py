@@ -1,7 +1,8 @@
 """The channel conditions the eval measures, and how each clip's randomness is seeded.
 
-Ten conditions (CLAUDE.md §5): clean wideband audio, the bare phone channel,
-the phone with packet loss, the phone with shop noise, and the worst case.
+Twelve conditions: clean wideband audio; a landline reference (G.711); and a
+mobile call (GSM then G.711, D-036) bare, with packet loss, with Indian shop
+noise, and the two together.
 
 Randomness is seeded per (utterance, condition), so any degraded clip can be
 regenerated exactly, and changing one condition never reshuffles another. The
@@ -23,15 +24,19 @@ NOISE_DIR = Path(__file__).resolve().parent / "noise"
 
 CONDITIONS: tuple[Condition, ...] = (
     Condition("clean"),
-    Condition("tel", telephone=True),
-    Condition("tel_loss1", telephone=True, loss_pct=1),
-    Condition("tel_loss5", telephone=True, loss_pct=5),
-    Condition("tel_loss10", telephone=True, loss_pct=10),
-    Condition("tel_snr20", telephone=True, snr_db=20),
-    Condition("tel_snr10", telephone=True, snr_db=10),
-    Condition("tel_snr5", telephone=True, snr_db=5),
-    Condition("tel_snr0", telephone=True, snr_db=0),
-    Condition("worst", telephone=True, snr_db=5, loss_pct=5),
+    # Landline: G.711 only. Kept as a reference; it sounded too kind for a shop (D-036).
+    Condition("landline", telephone=True),
+    # Mobile: GSM 06.10 then G.711, the path of a real mobile-to-landline call.
+    Condition("mob", telephone=True, codec="gsm"),
+    Condition("mob_loss1", telephone=True, codec="gsm", loss_pct=1),
+    Condition("mob_loss5", telephone=True, codec="gsm", loss_pct=5),
+    Condition("mob_loss10", telephone=True, codec="gsm", loss_pct=10),
+    Condition("mob_snr20", telephone=True, codec="gsm", snr_db=20),
+    Condition("mob_snr10", telephone=True, codec="gsm", snr_db=10),
+    Condition("mob_snr5", telephone=True, codec="gsm", snr_db=5),
+    Condition("mob_snr0", telephone=True, codec="gsm", snr_db=0),
+    Condition("mob_worst", telephone=True, codec="gsm", snr_db=5, loss_pct=5),
+    Condition("mob_harsh", telephone=True, codec="gsm", snr_db=0, loss_pct=10),
 )
 
 

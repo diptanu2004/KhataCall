@@ -850,8 +850,7 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
   describe something physically meaningless.
 
 ## D-036 — Add a mobile codec: G.711 alone sounded too kind
-- **Date:** 2026-10-22 · **Status:** Codec added; the condition grid waits on a
-  listening check.
+- **Date:** 2026-10-22 · **Status:** Adopted. The grid is now mobile-based (below).
 - **Why:** listening to take 001 under `tel`, `tel_snr5` and `worst`, all three
   sounded too kind for a shop owner on a phone. The reason is real: G.711 is
   landline and VoIP quality (64 kbps, ~38 dB quantisation SNR, essentially
@@ -868,3 +867,83 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
   open implementation is installed. GSM full-rate is older and generally a
   little worse than AMR-NB at its higher modes, so it is a fair, slightly harsh
   stand-in. The README should say so.
+- **The grid that follows (12 conditions):** `clean`; `landline` (G.711 only, kept
+  as a reference point); then on the mobile chain `mob`, `mob_loss{1,5,10}`,
+  `mob_snr{20,10,5,0}`, `mob_worst` (SNR 5 + 5% loss) and `mob_harsh` (SNR 0 +
+  10% loss). Every noisy or lossy condition is on mobile, because that is the
+  call the product will actually get. 60 takes x 12 = 720 Prisma calls, 46 min
+  of audio, Rs 20.75.
+
+## D-037 — The eval runner: what is cached, what is scored, and how WER is normalised
+- **Date:** 2026-10-22 · **Status:** Built; baseline running.
+- **Two stages, two caches.** STT is keyed by (sha256 of the *degraded* audio,
+  condition id, Prisma model id), as hard rule 3 asks; hashing the degraded
+  audio means a change to `degrade.py` re-fetches exactly the clips it changed.
+  The agent stage is keyed by (transcript sha256, Evon model, a hash of the
+  prompt and tool schemas), so an M4 prompt fix re-runs Evon automatically,
+  while identical transcripts across conditions (clean speech often survives
+  `mob` unchanged) are sent only once. Errors are never cached.
+- **Pacing:** 50 requests/min (10 under the published limit, so the live demo
+  can run alongside), **one at a time**. The published "20 concurrent sessions"
+  does not hold for REST: at 4 concurrent, 19 of 716 calls failed with HTTP 429
+  "Only 1 active request is allowed at a time". Not in the docs; found by the run.
+  Those 19 were metered (Rs ~0.6) and re-fetched serially.
+- **REST, not streaming, for the eval** (D-016): the cost per clip is the same,
+  and REST has no real-time cadence requirement.
+- **WER is reported twice.** *Raw*: lowercase, punctuation stripped. *Normalised*:
+  also spelling-folded with the agent's own `nlu.numbers.normalise`, and each
+  spoken number run replaced by its value, so "dedh sau udhaar" and "150 udhar"
+  count as identical. The pilot showed why both are needed: clean take 001 was
+  14% raw WER and 0% normalised, purely from "udhaar"/"udhar". The normalised
+  figure predicts what the agent sees; the gap is spelling, not hearing.
+- **Amount survival** is reported alongside WER: is the labelled amount
+  anywhere in the normalised transcript? kept / changed (a *different* number,
+  the dangerous case) / lost (no number). It needs no Evon, and it is closer to
+  the headline task metric than WER is.
+- **A normaliser bug the data caught:** fraction words ("sadhe", "paune",
+  "sava") do not parse alone, so "sadhe teen sau" was split into "sadhe 300"
+  and clean audio looked like 71% amount survival. Fixed (a word may start a
+  number run if it changes the value of "<word> sau"); it is 89%.
+- **Normaliser limits (stated, not hidden):** variants outside the folding rules
+  ("mein"/"me") still count; a lone "do" is kept as a word ("likh do"), so a
+  spoken "do" meaning two, standing alone, counts as a word on both sides;
+  Devanagari is not transliterated, only measured (`devanagari_fraction`), since
+  Prisma with en-IN has returned Latin script so far.
+
+## D-038 — STT baseline: noise is what hurts, the phone line barely matters
+- **Date:** 2026-10-22 · **Status:** Measured. Task-level (Evon) baseline pending:
+  the Kaggle session was down. 60 takes (speaker a, the first third of the
+  corpus) x 12 conditions; Rs 21.35 metered.
+
+| condition | WER norm | CER norm | amount kept | changed | lost | empty |
+|---|---|---|---|---|---|---|
+| clean | 12.7% | 3.7% | 89% | 4 | 0 | 0 |
+| landline | 12.1% | 3.5% | 89% | 4 | 0 | 0 |
+| mob | 12.1% | 3.5% | 89% | 4 | 0 | 0 |
+| mob_loss1 / 5 / 10 | 12.1 / 12.7 / 13.5% | 3.5 / 3.8 / 4.6% | 89% | 4 | 0 | 0 |
+| mob_snr20 | 13.0% | 3.7% | 91% | 3 | 0 | 0 |
+| mob_snr10 | 15.0% | 5.3% | 86% | 4 | 1 | 0 |
+| mob_snr5 | 23.6% | 12.6% | 71% | 7 | 3 | 0 |
+| mob_snr0 | 48.4% | 34.8% | 54% | 10 | 6 | 5 |
+| mob_worst (SNR 5 + 5%) | 28.5% | 16.3% | 74% | 6 | 3 | 1 |
+| mob_harsh (SNR 0 + 10%) | 58.2% | 47.9% | 31% | 9 | 15 | 11 |
+
+  (35 of the 60 takes carry an amount.)
+- **The phone line itself costs nothing measurable.** Landline, GSM and up to
+  10% bursty loss all sit within 1.5 points of clean. Prisma was evidently
+  trained on telephone audio; 8 kHz GSM is home ground for it.
+- **Noise is the whole story,** with a knee between 10 and 5 dB SNR: WER goes
+  15 -> 24 -> 48%. A busy bazaar behind the counter is roughly 5-10 dB.
+- **Noise and loss compound:** SNR 5 alone 23.6%, plus 5% loss 28.5%.
+- **The dangerous failure grows with noise:** amounts *changed* (a different,
+  confident number) rise 4 -> 7 -> 10 from clean to SNR 5 to SNR 0. Lost
+  amounts are safe (the agent re-asks); changed ones depend on the read-back.
+- **Errors on clean audio** are mostly spelling the folding does not cover
+  (rupaye/rupay 9, diye/die 5, ke/k 3, tiwari/tivadi 3), harmless to the agent.
+  The real ones are numbers that sound alike: pachchees -> pachas (625 -> 650),
+  **saath -> saat (60 -> 7)**, barah -> bada (1200 -> "100"). Plus "nao" for
+  nau, a spelling `numbers.py` does not know (940 -> 140): an M4 parser fix.
+- **What this means for M4:** digit-by-digit read-back of amounts (D-004)
+  targets exactly the "changed" column; a numbers.py variant list catches
+  "nao"; nothing in the channel needs fixing - the noise robustness is
+  Prisma's, and our lever is confirming what it heard.

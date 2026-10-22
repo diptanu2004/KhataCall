@@ -100,7 +100,8 @@ uv run python -m scripts.evon_check            # is Evon up, and how good are it
 USE_FAKES=true uv run uvicorn app.main:app      # run the whole UI with no API calls
 FAKE_LLM=true uv run uvicorn app.main:app       # real Prisma + Timbre, canned Evon
 uv run python -m eval.run_eval --dry-run        # count planned API calls
-uv run python -m eval.run_eval --max-calls 200  # run eval with a hard cap
+uv run python -m eval.run_eval --max-calls 800  # run eval with a hard cap (default 200)
+uv run python -m eval.run_eval --stages task    # re-score cached transcripts with Evon (no credits)
 uv run python -m eval.report                    # build charts from results
 ```
 Keep this section accurate when commands change.
@@ -194,7 +195,8 @@ Order matters — noise happens in the shop, before the phone network:
    the power of the noise segment actually used: the flea-market clip varies
    12 dB between quiet and busy stretches, so a file-level average would mislabel SNR)
 2. Band-limit to 300–3400 Hz, resample to 8 kHz (`resample_poly`)
-3. G.711 μ-law encode/decode (implement in numpy; `audioop` is gone in 3.13)
+3. Codec: G.711 μ-law (numpy; `audioop` is gone in 3.13), or for mobile
+   GSM 06.10 (libsndfile) then G.711 (D-036)
 4. Packet loss on 20 ms frames (160 samples), Gilbert-Elliott bursty model;
    concealment configurable: zero-fill or repeat-last-frame
 No final resampling stage: Prisma accepts 8 kHz natively (realtime
@@ -204,8 +206,9 @@ All randomness seeded. Each stage is a pure function, testable on its own.
 
 ### Eval harness (`eval/`)
 - `scripts.csv` columns: `id, text, intent, customer, amount_paise, item, qty, speaker`
-- Condition grid (~10): clean; tel-only; tel + loss {1, 5, 10}%;
-  tel + noise SNR {20, 10, 5, 0} dB; worst case (SNR 5 + 5% loss)
+- Condition grid (12, D-036): clean; landline (G.711 only, reference); mobile
+  (GSM 06.10 then G.711) bare, + loss {1, 5, 10}%, + noise SNR {20, 10, 5, 0} dB,
+  worst (SNR 5 + 5% loss), harsh (SNR 0 + 10% loss)
 - Metrics:
   - CER/WER after normalization (`normalize.py`: lowercase, strip punctuation,
     numerals → digits, Devanagari ↔ romanized unification). Document its limits.
@@ -265,11 +268,11 @@ rupaye udhaar likh doon?" → "haan" → Rs 550, with `ledger_update` pushed to 
 
 ### M3 — Channel + eval baseline (Wed Oct 21 – Tue Oct 27)
 - [x] `channel/degrade.py` + tests (SNR correctness, μ-law round trip, loss rate statistics) — D-035
-- [ ] Eval runner with cache, `--dry-run`, `--max-calls`
-- [ ] STT-level metrics across the condition grid
+- [x] Eval runner with cache, `--dry-run`, `--max-calls` (D-037; Prisma REST is 1 request at a time)
+- [x] STT-level metrics across the condition grid — 60 takes x 12 conditions, D-038
 - [ ] Task-level eval: run transcripts through the agent with the fake ledger, score task accuracy
 - [ ] Phone-line mode toggle in the UI (SNR + loss sliders) using the same `degrade.py`
-- [ ] Baseline charts committed to `eval/results/`
+- [ ] Baseline charts committed to `eval/results/` (STT charts done; task chart needs Evon)
 
 **Done when:** baseline numbers exist for every condition, with the API call count known.
 

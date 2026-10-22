@@ -7,10 +7,10 @@ import soundfile as sf
 from eval.conditions import CONDITIONS, by_id, load_noise_bank, noise_for, rng_for
 
 
-def test_the_grid_is_the_planned_ten():
+def test_the_grid_is_the_agreed_twelve():
     assert [c.id for c in CONDITIONS] == [
-        "clean", "tel", "tel_loss1", "tel_loss5", "tel_loss10",
-        "tel_snr20", "tel_snr10", "tel_snr5", "tel_snr0", "worst",
+        "clean", "landline", "mob", "mob_loss1", "mob_loss5", "mob_loss10",
+        "mob_snr20", "mob_snr10", "mob_snr5", "mob_snr0", "mob_worst", "mob_harsh",
     ]
     assert len({c.id for c in CONDITIONS}) == len(CONDITIONS)
 
@@ -19,22 +19,23 @@ def test_only_clean_stays_wideband():
     assert [c.id for c in CONDITIONS if not c.telephone] == ["clean"]
 
 
-def test_worst_case_is_noise_plus_loss():
-    worst = by_id("worst")
-    assert (worst.snr_db, worst.loss_pct) == (5, 5)
+def test_worst_cases_are_noise_plus_loss_on_mobile():
+    assert (by_id("mob_worst").snr_db, by_id("mob_worst").loss_pct) == (5, 5)
+    assert (by_id("mob_harsh").snr_db, by_id("mob_harsh").loss_pct) == (0, 10)
+    assert all(c.codec == "gsm" for c in CONDITIONS if c.id.startswith("mob"))
 
 
 def test_unknown_condition_names_the_known_ones():
-    with pytest.raises(KeyError, match="tel_snr10"):
+    with pytest.raises(KeyError, match="mob_snr10"):
         by_id("nope")
 
 
 def test_seeds_are_stable_and_independent():
     """Same utterance and condition, same randomness; anything else, different."""
-    a = rng_for("001", "tel_snr10").random(4)
-    assert np.array_equal(a, rng_for("001", "tel_snr10").random(4))
-    assert not np.array_equal(a, rng_for("001", "tel_snr5").random(4))
-    assert not np.array_equal(a, rng_for("002", "tel_snr10").random(4))
+    a = rng_for("001", "mob_snr10").random(4)
+    assert np.array_equal(a, rng_for("001", "mob_snr10").random(4))
+    assert not np.array_equal(a, rng_for("001", "mob_snr5").random(4))
+    assert not np.array_equal(a, rng_for("002", "mob_snr10").random(4))
 
 
 def test_an_utterance_gets_the_same_noise_in_every_condition(tmp_path):
