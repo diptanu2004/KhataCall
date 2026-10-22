@@ -264,7 +264,7 @@ rupaye udhaar likh doon?" → "haan" → Rs 550, with `ledger_update` pushed to 
 ✅ Again Oct 22 with **real Evon**: 3.87 s for the request, 1.03 s for "haan" (D-032).
 
 ### M3 — Channel + eval baseline (Wed Oct 21 – Tue Oct 27)
-- [ ] `channel/degrade.py` + tests (SNR correctness, μ-law round trip, loss rate statistics)
+- [x] `channel/degrade.py` + tests (SNR correctness, μ-law round trip, loss rate statistics) — D-035
 - [ ] Eval runner with cache, `--dry-run`, `--max-calls`
 - [ ] STT-level metrics across the condition grid
 - [ ] Task-level eval: run transcripts through the agent with the fake ledger, score task accuracy

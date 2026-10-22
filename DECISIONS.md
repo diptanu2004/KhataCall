@@ -816,3 +816,35 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
   README states this plainly as the eval's main limitation.
 - The column stays, so a second voice can be added later and reported as its
   own row rather than averaged in.
+
+## D-035 — The telephone channel simulation, and the numbers that validate it
+- **Date:** 2026-10-22 · **Status:** Accepted. `app/channel/degrade.py`,
+  conditions in `eval/conditions.py`.
+- **Stages, in physical order:** shop noise at a target SNR; 300-3400 Hz
+  band-pass and resample to 8 kHz; G.711 mu-law encode/decode; Gilbert
+  two-state bursty loss on 20 ms frames with zero-fill or repeat-last
+  concealment. Each stage is a pure function with an explicit seeded Generator.
+- **Measured, not assumed:**
+  - band edges at **-3.0 dB at 300 Hz and -3.1 dB at 3400 Hz**, flat at 1 kHz,
+    -40.6 dB at 100 Hz, -137 dB at 7 kHz (Butterworth order 4, causal, since a
+    real channel cannot look ahead);
+  - mu-law quantisation SNR **37-38.6 dB from -1 to -26 dBFS**, falling to 30.7
+    at -46 and 14.8 at -66: the G.711 plateau that companding is for. The
+    codec is the segmented G.711 algorithm, not the continuous mu-law curve,
+    and reproduces the standard's reference codes (0 -> 0xFF, +full scale ->
+    0x80, -full scale -> 0x00). `audioop`, which used to do this, is gone in
+    Python 3.13;
+  - packet loss **5.01% measured against 5%** over 200,000 frames, and mean
+    burst length within 10% of target;
+  - SNR exact to 0.05 dB on the real noise, including the variable
+    flea-market file, because it uses active speech power and the power of
+    the noise segment actually cut.
+- **SNR uses active speech power** (frames within 30 dB of the 95th-percentile
+  frame, a simplified ITU-T P.56). Half-silent takes would otherwise read
+  3 dB quiet and every condition would be noisier than its label.
+- **Mixing never clips**: if speech plus noise would exceed full scale, both are
+  scaled together, which leaves the SNR unchanged.
+- **Seeds:** `crc32("utterance:condition")`, not `hash()`, which Python salts
+  per process. Each utterance gets one noise file, the same in every condition.
+- **Loss without the phone network is refused**, so a condition cannot quietly
+  describe something physically meaningless.
