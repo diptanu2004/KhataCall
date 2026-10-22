@@ -239,3 +239,41 @@ def test_loss_without_the_phone_network_is_refused():
 def test_pcm16_conversion():
     pcm = to_pcm16(np.array([0.0, 1.0, -1.0, 2.0], dtype=np.float32))
     assert np.frombuffer(pcm, dtype="<i2").tolist() == [0, 32767, -32767, 32767]
+
+
+# --- the mobile codec (D-036) -----------------------------------------------
+
+
+def test_gsm_keeps_length_and_timing():
+    from scipy.signal import correlate
+
+    from app.channel.degrade import gsm_round_trip
+
+    x = telephone_band(speechlike(seconds=2.03))  # not a multiple of the 320-sample block
+    y = gsm_round_trip(x)
+    assert len(y) == len(x)
+    lag = int(np.argmax(correlate(y, x, mode="full", method="fft"))) - (len(x) - 1)
+    assert lag == 0
+
+
+def test_gsm_is_much_lossier_than_g711():
+    from app.channel.degrade import gsm_round_trip
+
+    x = telephone_band(speechlike())
+    g711 = level_db(x) - level_db(x - mulaw_decode(mulaw_encode(x)))
+    gsm = level_db(x) - level_db(x - gsm_round_trip(x))
+    assert g711 > 30
+    assert gsm < g711 - 15
+
+
+def test_mobile_condition_runs_gsm_then_g711():
+    x = speechlike()
+    land = degrade(x, Condition("tel", telephone=True), rng())
+    mobile = degrade(x, Condition("mob", telephone=True, codec="gsm"), rng())
+    assert len(mobile) == len(land)
+    assert not np.allclose(mobile, land, atol=1e-3)
+
+
+def test_unknown_codec_is_refused():
+    with pytest.raises(ValueError, match="codec"):
+        degrade(speechlike(), Condition("x", telephone=True, codec="amr"), rng())

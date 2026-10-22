@@ -34,6 +34,7 @@ __all__ = [
     "conceal",
     "degrade",
     "gilbert_elliott_mask",
+    "gsm_round_trip",
     "mix_noise",
     "mulaw_decode",
     "mulaw_encode",
@@ -149,6 +150,28 @@ def mulaw_decode(codes: np.ndarray) -> np.ndarray:
     return (np.where(c & 0x80, -magnitude, magnitude) / 32768.0).astype(np.float32)
 
 
+def gsm_round_trip(x: np.ndarray) -> np.ndarray:
+    """GSM 06.10 full-rate (13 kbps), the 2G mobile speech codec, at 8 kHz.
+
+    G.711 alone is landline quality and sounded too kind for a shop owner
+    calling from a mobile (D-036). This is libsndfile's real GSM 06.10 codec,
+    not an imitation: measured zero delay and a waveform SNR of 8.9 dB against
+    G.711's ~38. Output is trimmed to the input length (GSM-in-WAV pads to
+    whole 320-sample blocks).
+    """
+    import io
+
+    import soundfile as sf
+
+    buffer = io.BytesIO()
+    sf.write(buffer, np.clip(x, -1.0, 1.0), PHONE_RATE, format="WAV", subtype="GSM610")
+    buffer.seek(0)
+    y, _ = sf.read(buffer, dtype="float32")
+    if len(y) < len(x):
+        y = np.pad(y, (0, len(x) - len(y)))
+    return y[: len(x)].astype(np.float32)
+
+
 # --- 4. packet loss --------------------------------------------------------
 
 
@@ -216,6 +239,9 @@ class Condition:
     loss_pct: float = 0.0
     mean_burst: float = 2.0
     concealment: str = "zero"
+    # "g711": landline / VoIP. "gsm": a mobile call - GSM 06.10 on the radio leg,
+    # then G.711 in the core network, the tandem a real mobile-to-PSTN call goes through.
+    codec: str = "g711"
 
     @property
     def output_rate(self) -> int:
@@ -240,6 +266,10 @@ def degrade(
             raise ValueError("packet loss is a property of the phone network; set telephone=True")
         return x
     x = telephone_band(x, rate)
+    if condition.codec == "gsm":
+        x = gsm_round_trip(x)
+    elif condition.codec != "g711":
+        raise ValueError(f"unknown codec {condition.codec!r}")
     x = mulaw_decode(mulaw_encode(x))
     if condition.loss_pct:
         x, _ = packet_loss(x, condition.loss_pct / 100, rng, mean_burst=condition.mean_burst, how=condition.concealment)

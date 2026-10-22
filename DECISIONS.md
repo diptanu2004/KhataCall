@@ -848,3 +848,23 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
   per process. Each utterance gets one noise file, the same in every condition.
 - **Loss without the phone network is refused**, so a condition cannot quietly
   describe something physically meaningless.
+
+## D-036 — Add a mobile codec: G.711 alone sounded too kind
+- **Date:** 2026-10-22 · **Status:** Codec added; the condition grid waits on a
+  listening check.
+- **Why:** listening to take 001 under `tel`, `tel_snr5` and `worst`, all three
+  sounded too kind for a shop owner on a phone. The reason is real: G.711 is
+  landline and VoIP quality (64 kbps, ~38 dB quantisation SNR, essentially
+  transparent within the band). A kirana owner calls from a mobile, and mobile
+  networks compress speech far harder.
+- **What was added:** `codec="gsm"` on a condition runs **GSM 06.10 full-rate**
+  (13 kbps, the 2G codec) and then G.711, the tandem a mobile call to a landline
+  goes through: mobile codec on the radio leg, G.711 in the core. It is
+  libsndfile's real codec (already a dependency via soundfile), not an
+  imitation. Measured: zero delay, so packet-loss frames stay aligned; waveform
+  SNR 8.9 dB against G.711's ~38. Waveform SNR understates how good a
+  parametric speech codec sounds, but shows how much it changes the signal.
+- **Not available:** AMR-NB and EVS, what 3G/4G/VoLTE calls actually use. No
+  open implementation is installed. GSM full-rate is older and generally a
+  little worse than AMR-NB at its higher modes, so it is a fair, slightly harsh
+  stand-in. The README should say so.
