@@ -240,7 +240,7 @@ Mark tasks `[x]` as they are completed. `[human]` = Diptanu does this, not Claud
 - [x] ~~Write~~ **180** synthetic utterances in `scripts.csv` (drafted; review the phrasing)
 - [ ] [human] Calibrate the mic once: `uv run python -m scripts.calibrate`
 - [x] Speaker a recorded: 60 takes, median SNR 64 dB, no problems (D-022)
-- [ ] [human] Speakers b and c: `uv run python -m scripts.record --speaker b` (120 lines left)
+- [ ] [human] Record the remaining 120 lines yourself: `uv run python -m scripts.record` (one speaker, D-034)
 - [x] Shop noise: 3 CC0 Indian street recordings from Freesound, 4.8 min (Delhi bazaar, Trivandrum market, flea market); `eval/noise/SOURCES.md` (D-033)
 
 **Done when:** speaking a Hinglish sentence produces a spoken Hinglish reply in the browser.

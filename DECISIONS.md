@@ -802,3 +802,17 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
   file, which took 1.3 s off that one. The variability that remains is real,
   so the channel simulation must compute SNR on the noise segment it actually
   uses, not a file-wide average.
+
+## D-034 — One speaker records the whole corpus
+- **Date:** 2026-10-22 · **Status:** Accepted
+- All 180 utterances are recorded by Diptanu; the `speaker` column is now `a`
+  throughout (it had been split a/b/c in the hope of three voices).
+- **What this does not cost:** the headline experiment compares channel
+  conditions for the same voice, room and microphone. A within-speaker design
+  is, if anything, cleaner: speaker differences cannot leak into the channel
+  effect.
+- **What it does cost:** external validity. Results are "for this speaker",
+  not "for shop owners". A different accent, gender or age is untested. The
+  README states this plainly as the eval's main limitation.
+- The column stays, so a second voice can be added later and reported as its
+  own row rather than averaged in.

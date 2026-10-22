@@ -104,10 +104,11 @@ def test_the_corpus_is_big_enough_and_balanced(rows):
     assert counts["add_credit"] + counts["record_payment"] >= len(rows) * 0.5
 
 
-def test_work_is_split_evenly_between_speakers(rows):
-    counts = Counter(r["speaker"] for r in rows)
-    assert len(counts) >= 2
-    assert max(counts.values()) - min(counts.values()) <= 1
+def test_every_row_names_its_speaker(rows):
+    """One speaker recorded the whole corpus (D-034). The column must still be
+    filled, so a second voice can be added later and reported separately."""
+    assert all(r["speaker"].strip() for r in rows)
+    assert Counter(r["speaker"] for r in rows) == {"a": len(rows)}
 
 
 def test_no_real_identifiers_appear(rows):
