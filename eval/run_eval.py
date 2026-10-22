@@ -79,6 +79,11 @@ def known_customers() -> list[str]:
     return sorted({r["customer"] for r in rows if r["customer"]})
 
 
+def known_items() -> list[str]:
+    rows = csv.DictReader(CORPUS.open(encoding="utf-8"))
+    return sorted({r["item"] for r in rows if r["item"]})
+
+
 def degraded_clip(take: dict, condition: Condition, bank: dict[str, np.ndarray]) -> tuple[AudioClip, str | None]:
     noise_name, noise = (None, None)
     if condition.snr_db is not None:
@@ -376,11 +381,12 @@ async def run(args) -> int:
                 print(f"  Evon is not reachable ({problem}); skipping the task stage. See docs/EVON_KAGGLE.md.")
             else:
                 await run_task(wanted, settings, prompt_sha)
-        known = known_customers()
+        known, stock = known_customers(), known_items()
         for r in rows:
             hit = read_json(task_cache_key(r["transcript"], settings.evon_model, prompt_sha))
             if hit:
-                s = score_call(take_by_id[r["id"]], hit["tool"], hit["arguments"], known_customers=known)
+                s = score_call(take_by_id[r["id"]], hit["tool"], hit["arguments"],
+                               known_customers=known, known_items=stock)
                 r.update(outcome=s.outcome.value, reasons=list(s.reasons),
                          proposal={"tool": hit["tool"], "arguments": hit["arguments"]}, evon_ms=hit.get("ms"))
 

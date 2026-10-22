@@ -270,9 +270,9 @@ rupaye udhaar likh doon?" → "haan" → Rs 550, with `ledger_update` pushed to 
 - [x] `channel/degrade.py` + tests (SNR correctness, μ-law round trip, loss rate statistics) — D-035
 - [x] Eval runner with cache, `--dry-run`, `--max-calls` (D-037; Prisma REST is 1 request at a time)
 - [x] STT-level metrics across the condition grid — 60 takes x 12 conditions, D-038
-- [ ] Task-level eval: run transcripts through the agent with the fake ledger, score task accuracy
+- [x] Task-level eval: transcripts through Evon, scored by the executor's own parsing — 70% clean, 25% harsh (D-039)
 - [ ] Phone-line mode toggle in the UI (SNR + loss sliders) using the same `degrade.py`
-- [ ] Baseline charts committed to `eval/results/` (STT charts done; task chart needs Evon)
+- [x] Baseline charts committed to `eval/results/` (baseline_2026-10-23_*.png)
 
 **Done when:** baseline numbers exist for every condition, with the API call count known.
 

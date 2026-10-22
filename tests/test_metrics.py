@@ -204,3 +204,17 @@ def test_arguments_the_executor_would_reject_are_caught():
 
 def test_an_unknown_tool_is_caught():
     assert score(row(), ("delete_everything", {})).outcome is Outcome.CAUGHT
+
+
+def test_a_misheard_item_outside_the_stock_list_is_caught_not_wrong():
+    """The executor reads it back as "besson naya item hai", the same net as a new customer."""
+    from eval.metrics import score_call
+
+    r = stock_row(item="besan", qty="4", text="besan ke chaar kilo aaye")
+    proposal = {"item": "besson", "qty_delta_spoken": "chaar"}
+    s = score_call(r, "update_stock", proposal, known_customers=[], known_items=["besan", "chini"])
+    assert s.outcome.value == "caught" and "item new: besson" in s.reasons
+    # Heard as a different item that *is* stocked: that writes to the wrong row.
+    s = score_call(r, "update_stock", {"item": "chini", "qty_delta_spoken": "chaar"},
+                   known_customers=[], known_items=["besan", "chini"])
+    assert s.outcome.value == "wrong"

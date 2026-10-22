@@ -947,3 +947,47 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
   targets exactly the "changed" column; a numbers.py variant list catches
   "nao"; nothing in the channel needs fixing - the noise robustness is
   Prisma's, and our lever is confirming what it heard.
+
+## D-039 — Task-level baseline: 70% on clean audio, and "die" is the biggest single cause
+- **Date:** 2026-10-23 · **Status:** Measured; fixes deferred to M4 so the
+  before/after comparison is honest. Same 60 takes x 12 conditions as D-038;
+  226 distinct transcripts sent to Evon (Kaggle, Q4_K_M), no Gnani credits.
+  Results: `eval/results/baseline_2026-10-23.json` and `_task.png`.
+
+| condition | correct | caught | **wrong** |
+|---|---|---|---|
+| text ceiling (same 60 lines, D-031) | 93.3% | 5.0% | 1.7% |
+| clean audio | 70.0% | 18.3% | 11.7% |
+| landline / mob / loss 1-10% / SNR 20-10 | 70-73% | 17-20% | 10-11.7% |
+| mob_snr5 | 55.0% | 25.0% | 20.0% |
+| mob_worst (SNR 5 + 5% loss) | 45.0% | 30.0% | 25.0% |
+| mob_snr0 | 28.3% | 25.0% | 46.7% |
+| mob_harsh (SNR 0 + 10% loss) | 25.0% | 16.7% | 58.3% |
+
+- **Audio costs 23 points even when it is clean** (93% on text -> 70%), and the
+  phone channel adds nothing on top. So the gap is Prisma's Hinglish spelling
+  meeting Evon and our parser - not the line.
+- **Biggest single cause: "diye" transcribed as "die".** Of 15 clean payments,
+  6 transcripts say "die", and Evon booked 3 of them as *credit*. On text
+  ("ne ... diye") it gets these right. A payment written as udhaar is the
+  worst error a khata can make: the balance moves the wrong way by double the
+  amount. Same failure as D-031 #1, now with a concrete trigger.
+- **Wrong causes on clean:** payment->credit 3, amount 2 (saath->saat 60->7,
+  pachchees->pachas 625->650 - D-038), stock direction 1 ("aaye" read as sold).
+- **As noise rises, intent errors dominate** (SNR 0: 13 intent, 7 amount,
+  7 customer): with half the words gone, Evon still proposes a tool call
+  rather than asking. A confident guess on a fragment is the dangerous habit.
+- **Scoring change made before reading these numbers as final:** an item
+  misheard as something not in the stock list ("besson", "bonvita") now
+  counts as *caught*, not wrong: the executor reads it back as "besson naya
+  item hai", the same safety net that already made an unknown customer
+  "caught". An item heard as a *different stocked* item is still wrong.
+- **Evon latency** on these: p50 1.05 s, p90 1.16 s.
+- **M4 candidates, ranked by wrong answers removed:**
+  1. Deterministic payment guard: "ne" + a give-verb (de/diye/die/diya/jama)
+     forces record_payment; spelling variants in the verb list.
+  2. Digit-by-digit amount read-back (D-004) in phone mode - targets the
+     amount "changed" column.
+  3. Refuse to act on fragments: no tool call when the transcript has no
+     amount or no name for a money intent (turn noisy "wrong" into "caught").
+  4. numbers.py variants: "nao" (nau), and the D-031 list.

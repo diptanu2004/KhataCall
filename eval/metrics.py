@@ -75,12 +75,15 @@ def score_call(
     arguments: dict[str, Any] | None,
     *,
     known_customers: list[str],
+    known_items: list[str] | None = None,
 ) -> Score:
     """Score one proposal against one corpus row.
 
     `row` is a line of eval/corpus/scripts.csv. `tool_name` is None when the
     model replied in text instead of calling a tool. `known_customers` is the
-    ledger the executor would resolve names against.
+    ledger the executor would resolve names against. `known_items`, if given, is
+    the stock list: a misheard item that matches none of it is read back as
+    "naya item hai", so it counts as caught, like an unknown customer.
     """
     args = arguments or {}
     expected = row["intent"]
@@ -144,7 +147,12 @@ def score_call(
     if row.get("item"):
         spoken = str(args.get("item") or "")
         item_ok = bool(spoken) and _item_key(spoken) == _item_key(row["item"])
-        if not item_ok:
+        stock = {_item_key(i) for i in known_items or ()}
+        if item_ok:
+            pass
+        elif spoken and known_items is not None and _item_key(spoken) not in stock:
+            caught.append(f"item new: {spoken}")  # the executor flags "naya item hai"
+        else:
             reasons.append(f"item {spoken or 'missing'} instead of {row['item']}")
 
     if expected == "update_stock" and row.get("qty"):
