@@ -1008,3 +1008,31 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
 - **Cost:** ~Rs 41 of STT for the held-out set; the before/after task runs reuse
   cached transcripts and spend nothing. About 4,930 credits remain afterwards.
 
+## D-041 — Phone-line mode: buffer, degrade, REST — the eval's path, not a streaming one
+- **Date:** 2026-11-02 · **Status:** Built and tested (fakes); real-Prisma check pending.
+- **What it does:** with phone mode on, the session buffers the push-to-talk
+  utterance instead of opening the streaming socket. On release it runs the
+  eval's `degrade()` with a mobile-call condition (GSM 06.10 then G.711, the
+  `mob_*` chain of D-036), noise from the same Freesound bank, and sends the
+  8 kHz clip to Prisma REST. The degraded audio goes back to the browser as a
+  `heard_audio` message, so the viewer can press "Hear what Prisma heard".
+- **Why not degrade frame by frame on the streaming path:** the SNR is set
+  against the utterance's *active speech power* (D-035), which is unknown until
+  the owner stops talking; a streaming version would need a different SNR
+  estimate, and then the demo would no longer be what the eval measured.
+  REST is also exactly the endpoint the eval used (D-037).
+- **Cost of that choice:** phone-mode turns lose the streaming STT's latency
+  advantage (D-016): transcription starts at release, not during speech. For a
+  robustness demo this is the right trade; normal mode is unchanged.
+- **The pickers offer only the eval grid's values** (noise none/20/10/5/0 dB,
+  loss 0/1/5/10%), not free sliders. Every setting then maps to a measured
+  condition, and the panel shows that condition's task accuracy from the latest
+  baseline (`/eval/summary`), e.g. "72% correct, 10% wrong (mob_snr10, n=60)".
+  Combinations the grid never measured say so.
+- **Digit-by-digit read-back** turns on with phone mode (D-004): "ek paanch
+  shunya, 150 rupaye ... likh doon?"
+- **Guards:** a press under 0.2 s is not sent (no credit for a slip of the
+  finger); without imported noise, the line runs noise-free and says so. In
+  fakes mode both STT fakes share one script, so toggling mid-conversation
+  keeps its place.
+

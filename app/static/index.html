@@ -77,6 +77,19 @@
   @keyframes flash { from { background: color-mix(in srgb, var(--accent) 28%, transparent); } }
   .tagline { font-size: .72rem; color: var(--muted); margin-left: 6px; }
 
+  .phone { display: flex; flex-direction: column; gap: 10px; }
+  .phone .switch { display: flex; align-items: center; gap: 10px; font-weight: 600; cursor: pointer; }
+  .phone .switch input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .phone .opts { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; font-size: .9rem; }
+  .phone .opts[hidden] { display: none; }
+  .phone select { font: inherit; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line);
+                  background: var(--panel); color: var(--ink); }
+  .measured { font-size: .82rem; color: var(--muted); }
+  .measured b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .hear { margin-top: 6px; font: inherit; font-size: .8rem; padding: 4px 10px; border-radius: 999px;
+          border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; }
+  .hear:hover { border-color: var(--accent); }
+
   .log { font: .78rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
          color: var(--muted); max-height: 140px; overflow-y: auto; white-space: pre-wrap; }
   .log .err { color: var(--warn); }
@@ -92,6 +105,24 @@
 
   <button class="mic" id="mic" disabled>Hold to speak</button>
   <p class="hint">Hold the button, or hold the <kbd>Space</kbd> bar</p>
+
+  <div class="panel phone">
+    <label class="switch"><input type="checkbox" id="phone"> Phone-line mode
+      <span class="tagline">a mobile call from a noisy shop, through the same channel the eval measured</span></label>
+    <div class="opts" id="phone-opts" hidden>
+      <label>Shop noise
+        <select id="snr">
+          <option value="">none</option><option value="20">20 dB</option>
+          <option value="10" selected>10 dB</option><option value="5">5 dB</option><option value="0">0 dB</option>
+        </select></label>
+      <label>Packet loss
+        <select id="loss">
+          <option value="0" selected>0%</option><option value="1">1%</option>
+          <option value="5">5%</option><option value="10">10%</option>
+        </select></label>
+      <span class="measured" id="measured"></span>
+    </div>
+  </div>
 
   <div class="status"><span class="dot" id="dot"></span><span id="state">Connecting…</span></div>
 
@@ -153,7 +184,7 @@ function setState(state) {
   );
 }
 
-function addTurn(who, text) {
+function addTurn(who, text, extra) {
   const convo = $("convo");
   convo.querySelector(".empty")?.remove();
   const wrap = document.createElement("div");
@@ -165,6 +196,7 @@ function addTurn(who, text) {
   said.className = "said";
   said.textContent = text;
   wrap.append(label, said);
+  if (extra) wrap.append(extra);
   convo.prepend(wrap);
 }
 
@@ -258,6 +290,72 @@ function playChunk(arrayBuffer) {
   playhead += buffer.duration;
 }
 
+// --- phone-line mode ---
+// The options are exactly the eval grid's values, so every setting can be read
+// against a measured result (eval/results, served by /eval/summary).
+
+let evalSummary = null, pendingHeard = null;
+
+function phoneConfig() {
+  const on = $("phone").checked;
+  const snr = $("snr").value;
+  return { type: "config", phone_mode: on, snr_db: on && snr !== "" ? Number(snr) : null,
+           loss_pct: on ? Number($("loss").value) : 0 };
+}
+
+function conditionFor(snr, loss) {
+  if (snr === null) return loss ? `mob_loss${loss}` : "mob";
+  if (!loss) return `mob_snr${snr}`;
+  if (snr === 5 && loss === 5) return "mob_worst";
+  if (snr === 0 && loss === 10) return "mob_harsh";
+  return null;
+}
+
+function showMeasured() {
+  const c = phoneConfig();
+  const el = $("measured");
+  if (!c.phone_mode || !evalSummary) { el.textContent = ""; return; }
+  const id = conditionFor(c.snr_db, c.loss_pct);
+  const s = id && evalSummary.conditions[id];
+  if (!s || !s.task) { el.textContent = "Not a measured condition."; return; }
+  el.replaceChildren(
+    "Eval at this setting: ",
+    Object.assign(document.createElement("b"), { textContent: Math.round(s.task.accuracy * 100) + "% correct" }),
+    `, ${Math.round(s.task.wrong_rate * 100)}% wrong (${id}, n=${s.task.n})`,
+  );
+}
+
+function sendPhoneConfig() {
+  $("phone-opts").hidden = !$("phone").checked;
+  showMeasured();
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(phoneConfig()));
+}
+
+for (const id of ["phone", "snr", "loss"]) $(id).addEventListener("change", sendPhoneConfig);
+
+function hearButton(heard) {
+  const b = document.createElement("button");
+  b.className = "hear";
+  const noise = heard.snr_db == null ? "no noise" : `${heard.snr_db} dB noise`;
+  b.textContent = `▶ Hear what Prisma heard (${noise}, ${heard.loss_pct}% loss)`;
+  b.addEventListener("click", () => {
+    if (!audioCtx) audioCtx = new AudioContext();
+    const bytes = Uint8Array.from(atob(heard.pcm_b64), (ch) => ch.charCodeAt(0));
+    const pcm = new Int16Array(bytes.buffer);
+    const buffer = audioCtx.createBuffer(1, pcm.length, heard.sample_rate);
+    const channel = buffer.getChannelData(0);
+    for (let i = 0; i < pcm.length; i++) channel[i] = pcm[i] / 32768;
+    const source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioCtx.destination);
+    source.start();
+  });
+  return b;
+}
+
+fetch("/eval/summary").then((r) => (r.ok ? r.json() : null))
+  .then((s) => { evalSummary = s; showMeasured(); }).catch(() => {});
+
 // --- microphone capture ---
 
 async function startMic() {
@@ -330,6 +428,7 @@ function connect() {
     $("mic").disabled = false;
     setState("LISTENING");
     log("connected");
+    if ($("phone").checked) sendPhoneConfig();
   };
 
   ws.onmessage = (event) => {
@@ -337,7 +436,12 @@ function connect() {
     const m = JSON.parse(event.data);
     switch (m.type) {
       case "state": setState(m.state); break;
-      case "transcript": addTurn("You said", m.text); break;
+      case "heard_audio": pendingHeard = m; break;
+      case "transcript":
+        addTurn(pendingHeard ? "You said, over the phone line" : "You said", m.text,
+                pendingHeard ? hearButton(pendingHeard) : null);
+        pendingHeard = null;
+        break;
       case "agent_text": addTurn("KhataCall", m.text); break;
       case "audio_start": playRate = m.sample_rate; playhead = 0; break;
       case "audio_end": break;

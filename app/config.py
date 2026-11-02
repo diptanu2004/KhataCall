@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     evon_model: str = "gnani/gnani-evon-v3.3-30B-A3B"
 
     db_path: str = "khatacall.db"
+    # Shop noise for phone-line mode, the same files the eval mixes in (docs/NOISE.md).
+    noise_dir: str = "eval/noise"
     # All three adapters faked: no network, no credits.
     use_fakes: bool = False
     # Only Evon faked, so real Prisma and Timbre can be demoed before the weights land.

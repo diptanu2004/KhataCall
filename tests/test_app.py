@@ -132,3 +132,48 @@ def test_ws_confirmation_commits_and_pushes_a_ledger_update(fake_mode, tmp_path,
 
     agent_text = next(m["text"] for m in second if m["type"] == "agent_text")
     assert "Likh diya" in agent_text
+
+
+def test_ws_phone_mode_turn_over_the_real_endpoint(fake_mode):
+    """Phone mode end to end: config, a spoken turn, the degraded audio, a digit read-back."""
+    import base64
+
+    import numpy as np
+
+    t = np.arange(int(0.6 * CLIENT_SAMPLE_RATE)) / CLIENT_SAMPLE_RATE
+    pcm = (0.3 * np.sin(2 * np.pi * 300 * t) * 32767).astype("<i2").tobytes()
+
+    with TestClient(app).websocket_connect("/ws") as ws:
+        ws.receive()  # the opening ledger snapshot
+        ws.send_text(json.dumps({"type": "config", "phone_mode": True, "snr_db": None, "loss_pct": 5}))
+        ws.send_text(json.dumps({"type": "start"}))
+        for i in range(0, len(pcm), 640):
+            ws.send_bytes(pcm[i : i + 640])
+        ws.send_text(json.dumps({"type": "stop"}))
+
+        seen = []
+        while True:
+            message = ws.receive()
+            if (raw := message.get("text")) is None:
+                continue
+            payload = json.loads(raw)
+            seen.append(payload)
+            if payload["type"] == "latency":
+                break
+
+    by_type = {m["type"]: m for m in seen}
+    types = [m["type"] for m in seen]
+    assert "Phone line on" in by_type["notice"]["message"]
+    assert types.index("heard_audio") < types.index("transcript")
+    heard = by_type["heard_audio"]
+    assert heard["sample_rate"] == 8_000
+    assert len(base64.b64decode(heard["pcm_b64"])) == len(pcm) // 2
+    # Phone mode reads the amount back digit by digit, as well as in words (D-004).
+    assert "ek paanch shunya, 150 rupaye" in by_type["agent_text"]["text"]
+
+
+def test_eval_summary_is_served_without_transcripts():
+    body = TestClient(app).get("/eval/summary").json()
+    assert set(body) == {"file", "conditions"}
+    for summary in body["conditions"].values():
+        assert "rows" not in summary

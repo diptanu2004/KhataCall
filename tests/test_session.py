@@ -1,12 +1,15 @@
 """One turn through the session state machine, with fakes. No network."""
 
 import asyncio
+import base64
 from contextlib import asynccontextmanager
 
+import numpy as np
 import pytest
 
 from app.adapters.base import LLMReply
-from app.adapters.fakes import FailingTTS, FakeLiveSTT, FakeLLM, FakeTTS
+from app.adapters.fakes import FailingTTS, FakeLiveSTT, FakeLLM, FakeSTT, FakeTTS
+from app.channel.phone import PhoneLine
 from app.pipeline.session import COULD_NOT_HEAR, MAX_HISTORY_MESSAGES, SOMETHING_BROKE, Session
 from app.protocol import CLIENT_SAMPLE_RATE, State
 
@@ -41,7 +44,7 @@ class Recorder:
 
 
 def build(
-    *, transcripts=(UTTERANCE,), replies=(REPLY,), stt=None, tts=None, llm=None
+    *, transcripts=(UTTERANCE,), replies=(REPLY,), stt=None, tts=None, llm=None, batch_stt=None, phone_line=None
 ) -> tuple[Session, Recorder, FakeLiveSTT, FakeLLM, FakeTTS]:
     rec = Recorder()
     stt = stt or FakeLiveSTT(transcripts)
@@ -57,6 +60,8 @@ def build(
         tts_language="hi-en",
         tts_voice="Poorvi",
         client_sample_rate=CLIENT_SAMPLE_RATE,
+        batch_stt=batch_stt,
+        phone_line=phone_line,
     )
     return session, rec, stt, llm, tts
 
@@ -304,13 +309,96 @@ def test_start_during_a_turn_is_ignored():
     assert len(stt.opened_with) == 1
 
 
-def test_phone_mode_request_is_acknowledged_as_not_built():
+# --- phone-line mode -------------------------------------------------------
+
+NOISE_BANK = {"freesound_1": (0.05 * np.random.default_rng(0).standard_normal(16_000 * 5)).astype(np.float32)}
+
+
+def speech_chunks(seconds: float = 0.6, chunk: int = 640) -> list[bytes]:
+    """A tone standing in for speech, as the browser would send it: PCM16 at 16 kHz."""
+    t = np.arange(int(seconds * CLIENT_SAMPLE_RATE)) / CLIENT_SAMPLE_RATE
+    pcm = (0.3 * np.sin(2 * np.pi * 300 * t) * 32767).astype("<i2").tobytes()
+    return [pcm[i : i + chunk] for i in range(0, len(pcm), chunk)]
+
+
+def phone_build(bank=NOISE_BANK, transcripts=(UTTERANCE,)):
+    batch = FakeSTT(transcripts)
+    session, rec, stt, llm, tts = build(batch_stt=batch, phone_line=PhoneLine(bank))
+    return session, rec, stt, batch
+
+
+async def phone_turn(session: Session, chunks: list[bytes], **config) -> None:
+    await session.handle_json({"type": "config", "phone_mode": True, **config})
+    await session.handle_json({"type": "start"})
+    for c in chunks:
+        await session.handle_audio(c)
+    await session.handle_json({"type": "stop"})
+
+
+def test_phone_mode_is_refused_where_the_server_cannot_do_it():
     session, rec, _, _, _ = build()
     asyncio.run(session.handle_json({"type": "config", "phone_mode": True, "snr_db": 10}))
 
-    assert "M3" in rec.first("notice")["message"]
-    assert session.config.phone_mode is True
-    assert session.config.snr_db == 10
+    assert "not available" in rec.first("notice")["message"]
+    assert session.config.phone_mode is False
+
+
+def test_a_phone_turn_degrades_the_whole_utterance_and_uses_rest():
+    """The eval's path exactly: no live socket, one 8 kHz clip to Prisma REST."""
+    session, rec, live, batch = phone_build()
+    chunks = speech_chunks(0.6)
+
+    asyncio.run(phone_turn(session, chunks, snr_db=10, loss_pct=5))
+
+    assert live.opened_with == [], "phone mode must not open the streaming socket"
+    clip, language = batch.calls[0]
+    assert (clip.sample_rate, language) == (8_000, "en-IN")
+    assert clip.num_samples == len(b"".join(chunks)) // 2 // 2  # 16 kHz in, 8 kHz out
+    assert rec.first("transcript")["text"] == UTTERANCE
+    assert rec.states() == ["LISTENING", "TRANSCRIBING", "THINKING", "SPEAKING", "LISTENING"]
+
+
+def test_the_degraded_audio_is_sent_back_before_the_transcript():
+    session, rec, _, batch = phone_build()
+    asyncio.run(phone_turn(session, speech_chunks(0.6), snr_db=5, loss_pct=1))
+
+    types = rec.types()
+    assert types.index("heard_audio") < types.index("transcript")
+    heard = rec.first("heard_audio")
+    assert base64.b64decode(heard["pcm_b64"]) == batch.calls[0][0].pcm
+    assert (heard["sample_rate"], heard["snr_db"], heard["loss_pct"], heard["noise"]) == (8_000, 5, 1, "freesound_1")
+
+
+def test_a_tap_in_phone_mode_is_not_sent_to_prisma():
+    session, rec, _, batch = phone_build(transcripts=())
+    asyncio.run(phone_turn(session, speech_chunks(0.05)))
+
+    assert batch.calls == []
+    assert rec.first("agent_text")["text"] == COULD_NOT_HEAR
+
+
+def test_without_imported_noise_the_line_runs_noise_free():
+    session, rec, _, batch = phone_build(bank={})
+    asyncio.run(phone_turn(session, speech_chunks(0.6), snr_db=5))
+
+    assert any("No shop noise" in m["message"] for m in rec.all("notice"))
+    assert session.config.snr_db is None
+    assert rec.first("heard_audio")["noise"] is None
+    assert len(batch.calls) == 1
+
+
+def test_turning_phone_mode_off_goes_back_to_streaming():
+    session, rec, live, batch = phone_build()
+    live._queue.append(UTTERANCE)  # one scripted transcript for the streaming turn
+
+    async def run():
+        await phone_turn(session, speech_chunks(0.6))
+        await session.handle_json({"type": "config", "phone_mode": False})
+        await one_turn(session)
+
+    asyncio.run(run())
+    assert len(batch.calls) == 1
+    assert len(live.opened_with) == 1
 
 
 def test_config_without_phone_mode_is_silent():

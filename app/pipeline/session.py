@@ -13,16 +13,21 @@ and the three adapters, so the whole turn can be tested with fakes.
 """
 
 import asyncio
+import base64
 import logging
 import time
+import zlib
 from collections.abc import Awaitable, Callable, Sequence
 from contextlib import AsyncExitStack
 from typing import Any
 
-from app.adapters.base import LLM, TTS, LLMReply, Message
+import numpy as np
+
+from app.adapters.base import LLM, STT, TTS, LLMReply, Message, Transcript
 from app.agent.executor import Executor, Outcome
 from app.agent.prompts import SYSTEM_PROMPT
 from app.agent.tools import TOOL_SCHEMAS
+from app.channel.phone import MIN_UTTERANCE_S, PhoneLine
 from app.ledger.repo import Ledger
 from app.protocol import (
     AgentTextMessage,
@@ -30,6 +35,7 @@ from app.protocol import (
     AudioStartMessage,
     ConfigMessage,
     ErrorMessage,
+    HeardAudioMessage,
     LatencyMessage,
     LedgerUpdateMessage,
     NoticeMessage,
@@ -77,6 +83,8 @@ class Session:
         system_prompt: str = SYSTEM_PROMPT,
         ledger: Ledger | None = None,
         session_id: str | None = None,
+        batch_stt: STT | None = None,
+        phone_line: PhoneLine | None = None,
     ) -> None:
         self._stt = stt
         self._llm = llm
@@ -92,6 +100,13 @@ class Session:
         # Without a ledger the agent can still talk, which is what USE_FAKES does.
         self._executor = Executor(ledger, session_id=session_id) if ledger is not None else None
         self._tools = TOOL_SCHEMAS if ledger is not None else ()
+        # Phone-line mode: the utterance is buffered, degraded and sent to Prisma
+        # REST in one piece, exactly as the eval did (app/channel/phone.py).
+        self._batch_stt = batch_stt
+        self._phone_line = phone_line
+        self._session_id = session_id or "local"
+        self._buffer: bytearray | None = None  # set for a phone-mode turn
+        self._phone_turns = 0
 
         self.state = State.IDLE
         self.config = ConfigMessage()
@@ -131,8 +146,8 @@ class Session:
                 await self._handle_stop()
 
     async def handle_audio(self, pcm: bytes) -> None:
-        """Forward microphone audio to Prisma as it arrives."""
-        if self.state is not State.LISTENING or self._live is None:
+        """Forward microphone audio to Prisma as it arrives (or buffer it, in phone mode)."""
+        if self.state is not State.LISTENING or (self._live is None and self._buffer is None):
             return  # frames outside a turn, e.g. a late flush after release
         now = time.perf_counter()
         if self._first_push_at is None:
@@ -140,23 +155,47 @@ class Session:
         self._last_push_at = now
         self._pushes += 1
         self._pushed_bytes += len(pcm)
-        await self._live.push(pcm)
+        if self._buffer is not None:
+            self._buffer.extend(pcm)
+        else:
+            await self._live.push(pcm)
+
+    @property
+    def phone_mode_available(self) -> bool:
+        return self._batch_stt is not None and self._phone_line is not None
 
     async def _handle_config(self, message: ConfigMessage) -> None:
+        if message.phone_mode and not self.phone_mode_available:
+            message = message.model_copy(update={"phone_mode": False})
+            await self._send(NoticeMessage(message="Phone-line mode is not available on this server."))
+        if message.phone_mode and message.snr_db is not None and not self._phone_line.has_noise:
+            message = message.model_copy(update={"snr_db": None})
+            await self._send(
+                NoticeMessage(message="No shop noise imported (docs/NOISE.md); the line is noise-free.")
+            )
         self.config = message
         if self._executor is not None:
             # No STT confidence exists to key off, so phone mode always spells the
             # amount out digit by digit (D-004).
             self._executor.spell_amounts = message.phone_mode
         if message.phone_mode:
-            # Honest about scope: channel/degrade.py lands in M3.
-            await self._send(NoticeMessage(message="Phone-line mode is not wired up yet (M3)."))
+            noise = f"shop noise at {message.snr_db:g} dB SNR" if message.snr_db is not None else "no shop noise"
+            loss = message.loss_pct or 0
+            await self._send(
+                NoticeMessage(message=f"Phone line on: mobile call (GSM + G.711), {noise}, {loss:g}% packet loss.")
+            )
 
     async def _handle_start(self) -> None:
         if self.state in (State.TRANSCRIBING, State.THINKING, State.SPEAKING):
             log.warning("start ignored while %s", self.state)
             return
-        await self._open_stt()
+        if self.config.phone_mode:
+            # No socket is opened: the whole utterance is needed before it can be degraded.
+            self._release_stt()
+            self._buffer = bytearray()
+        else:
+            self._buffer = None
+            await self._open_stt()
         self._pushes = self._pushed_bytes = 0
         self._first_push_at = self._last_push_at = None
         await self._set_state(State.LISTENING)
@@ -185,9 +224,35 @@ class Session:
 
     # --- the turn ---
 
+    async def _transcribe_phone_line(self) -> Transcript:
+        """Degrade the buffered utterance like the eval's mob_* conditions, then Prisma REST."""
+        pcm, self._buffer = bytes(self._buffer or b""), None
+        if len(pcm) / 2 / self._client_sample_rate < MIN_UTTERANCE_S:
+            return Transcript(text="")  # a tap, not speech: nothing worth paying to transcribe
+        self._phone_turns += 1
+        rng = np.random.default_rng(zlib.crc32(f"{self._session_id}:{self._phone_turns}".encode()))
+        result = await asyncio.to_thread(
+            self._phone_line.apply,
+            pcm,
+            rate=self._client_sample_rate,
+            snr_db=self.config.snr_db,
+            loss_pct=self.config.loss_pct or 0.0,
+            rng=rng,
+        )
+        await self._send(
+            HeardAudioMessage(
+                sample_rate=result.clip.sample_rate,
+                pcm_b64=base64.b64encode(result.clip.pcm).decode("ascii"),
+                snr_db=self.config.snr_db if result.noise else None,
+                loss_pct=self.config.loss_pct or 0.0,
+                noise=result.noise,
+            )
+        )
+        return await self._batch_stt.transcribe(result.clip, language=self._stt_language)
+
     async def _handle_stop(self) -> None:
         """Push-to-talk released. This is end of speech: the latency clock starts here."""
-        if self.state is not State.LISTENING or self._live is None:
+        if self.state is not State.LISTENING or (self._live is None and self._buffer is None):
             log.warning("stop ignored while %s", self.state)
             return
 
@@ -195,11 +260,15 @@ class Session:
         await self._set_state(State.TRANSCRIBING)
 
         try:
-            transcript = await self._live.finish()
+            if self._buffer is not None:
+                transcript = await self._transcribe_phone_line()
+            else:
+                transcript = await self._live.finish()
             # Measured before teardown: closing the socket is not part of recognition.
             stt_ms = (time.perf_counter() - speech_end) * 1000
         except Exception as e:
             log.exception("STT failed")
+            self._buffer = None
             self._release_stt()
             await self._send(ErrorMessage(message=f"Speech recognition failed: {e}", spoken=True))
             await self._speak(COULD_NOT_HEAR, speech_end=speech_end)

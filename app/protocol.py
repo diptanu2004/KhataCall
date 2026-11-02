@@ -42,7 +42,11 @@ class StopMessage(BaseModel):
 
 
 class ConfigMessage(BaseModel):
-    """Phone-line simulation settings. Honoured from M3; accepted and echoed before then."""
+    """Phone-line mode: a simulated mobile call from a noisy shop (app/channel/phone.py).
+
+    `snr_db` None means no shop noise. The UI offers only the eval grid's values,
+    so every demo setting matches a measured condition.
+    """
 
     type: Literal["config"] = "config"
     phone_mode: bool = False
@@ -105,6 +109,20 @@ class LedgerUpdateMessage(BaseModel):
     items: list[dict] = Field(default_factory=list)
 
 
+class HeardAudioMessage(BaseModel):
+    """Phone-line mode: the degraded audio Prisma was sent, so the user can hear it.
+
+    PCM16 mono, base64, at `sample_rate` (8 kHz). Sent before the transcript.
+    """
+
+    type: Literal["heard_audio"] = "heard_audio"
+    sample_rate: int
+    pcm_b64: str
+    snr_db: float | None = None
+    loss_pct: float = 0.0
+    noise: str | None = None
+
+
 class ErrorMessage(BaseModel):
     """A failure the user should know about. `spoken` is true if the agent also said it aloud."""
 
@@ -128,6 +146,7 @@ ServerMessage = Annotated[
     | AudioEndMessage
     | LatencyMessage
     | LedgerUpdateMessage
+    | HeardAudioMessage
     | ErrorMessage
     | NoticeMessage,
     Field(discriminator="type"),

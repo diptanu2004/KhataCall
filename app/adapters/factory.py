@@ -4,11 +4,13 @@
 can be exercised without a network, an Evon endpoint, or spending credits.
 """
 
+from collections import deque
 from typing import Any
 
 from app.adapters.base import LLMReply, ToolCall
 from app.adapters.evon_llm import EvonLLM
-from app.adapters.fakes import FakeLiveSTT, FakeLLM, FakeTTS
+from app.adapters.fakes import FakeLiveSTT, FakeLLM, FakeSTT, FakeTTS
+from app.adapters.gnani_stt import PrismaSTT
 from app.adapters.gnani_stt_stream import PrismaStreamingSTT
 from app.adapters.gnani_tts import TimbreTTS
 from app.config import Settings
@@ -41,13 +43,20 @@ FAKE_REPLIES: list[LLMReply] = [
 ]
 
 
-def build_adapters(settings: Settings) -> tuple[Any, Any, Any]:
-    """Return (stt, llm, tts). The STT is the *streaming* adapter: the live path needs it."""
+def build_adapters(settings: Settings) -> tuple[Any, Any, Any, Any]:
+    """Return (stt, llm, tts, batch_stt).
+
+    `stt` is the *streaming* adapter the live path needs. `batch_stt` is Prisma
+    REST, used by phone-line mode, which sends one degraded clip per turn exactly
+    as the eval did (D-037).
+    """
     if settings.use_fakes:
+        script = deque(FAKE_TRANSCRIPTS * 20)
         return (
-            FakeLiveSTT(FAKE_TRANSCRIPTS * 20),
+            FakeLiveSTT(script),
             FakeLLM(FAKE_REPLIES * 20),
             FakeTTS(sample_rate=settings.tts_sample_rate),
+            FakeSTT(script),
         )
 
     key = settings.gnani_api_key.get_secret_value()
@@ -60,4 +69,9 @@ def build_adapters(settings: Settings) -> tuple[Any, Any, Any]:
             model=settings.evon_model,
         )
     )
-    return PrismaStreamingSTT(key), llm, TimbreTTS(key, sample_rate=settings.tts_sample_rate)
+    return (
+        PrismaStreamingSTT(key),
+        llm,
+        TimbreTTS(key, sample_rate=settings.tts_sample_rate),
+        PrismaSTT(key, base_url=settings.gnani_base_url),
+    )

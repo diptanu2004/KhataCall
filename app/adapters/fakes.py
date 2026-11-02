@@ -14,7 +14,9 @@ class FakeSTT:
     model_id = "fake-stt"
 
     def __init__(self, transcripts: Iterable[str] = ()) -> None:
-        self._queue = deque(transcripts)
+        # A deque is shared, not copied: phone mode's REST fake and the streaming
+        # fake then read one script, and a toggle mid-conversation keeps its place.
+        self._queue = transcripts if isinstance(transcripts, deque) else deque(transcripts)
         self.calls: list[tuple[AudioClip, str]] = []
 
     async def transcribe(self, audio: AudioClip, *, language: str) -> Transcript:
@@ -91,7 +93,9 @@ class FakeLiveSTT:
     def __init__(
         self, transcripts: Iterable[str] = (), *, fail_with: Exception | None = None
     ) -> None:
-        self._queue = deque(transcripts)
+        # A deque is shared, not copied: phone mode's REST fake and the streaming
+        # fake then read one script, and a toggle mid-conversation keeps its place.
+        self._queue = transcripts if isinstance(transcripts, deque) else deque(transcripts)
         self._fail_with = fail_with
         self.sessions: list[FakeLiveTranscription] = []
         self.opened_with: list[tuple[str, int]] = []

@@ -3,12 +3,15 @@
 import json
 import logging
 import uuid
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
 from app.adapters.factory import build_adapters
+from app.channel.noise import load_noise_bank
+from app.channel.phone import PhoneLine
 from app.config import get_settings
 from app.ledger.db import connect
 from app.ledger.repo import Ledger
@@ -23,6 +26,14 @@ STATIC_DIR = Path(__file__).parent / "static"
 app = FastAPI(title="KhataCall")
 
 
+@lru_cache
+def phone_line(noise_dir: str) -> PhoneLine:
+    """Loaded once per process: ~18 MB of noise, the same files the eval used."""
+    bank = load_noise_bank(Path(noise_dir))
+    log.info("phone line: %d noise recordings from %s", len(bank), noise_dir)
+    return PhoneLine(bank)
+
+
 @app.get("/healthz")
 def healthz() -> dict[str, str]:
     settings = get_settings()
@@ -31,6 +42,20 @@ def healthz() -> dict[str, str]:
         "mode": _mode(settings),
         "client_sample_rate": str(CLIENT_SAMPLE_RATE),
     }
+
+
+RESULTS_DIR = Path(__file__).resolve().parents[1] / "eval" / "results"
+
+
+@app.get("/eval/summary")
+def eval_summary() -> dict:
+    """The newest baseline's per-condition summary, so the phone-line panel can show
+    what the eval measured at the chosen setting. Summary only, no transcripts."""
+    found = sorted(RESULTS_DIR.glob("baseline_*.json"))
+    if not found:
+        return {"file": None, "conditions": {}}
+    data = json.loads(found[-1].read_text(encoding="utf-8"))
+    return {"file": found[-1].name, "conditions": data.get("summary", {})}
 
 
 def _mode(settings) -> str:
@@ -43,7 +68,7 @@ def _mode(settings) -> str:
 async def voice(websocket: WebSocket) -> None:
     await websocket.accept()
     settings = get_settings()
-    stt, llm, tts = build_adapters(settings)
+    stt, llm, tts, batch_stt = build_adapters(settings)
     # One connection per call. SQLite connections are not safe to share across
     # threads, and a call is short-lived, so this is both simpler and correct.
     database = connect(settings.db_path)
@@ -60,6 +85,8 @@ async def voice(websocket: WebSocket) -> None:
         client_sample_rate=CLIENT_SAMPLE_RATE,
         ledger=Ledger(database),
         session_id=session_id,
+        batch_stt=batch_stt,
+        phone_line=phone_line(settings.noise_dir),
     )
     log.info("session %s open (mode=%s, db=%s)", session_id, _mode(settings), settings.db_path)
     await session.send_opening_ledger()
@@ -82,6 +109,8 @@ async def voice(websocket: WebSocket) -> None:
         pass
     finally:
         await session.aclose()
+        if hasattr(batch_stt, "aclose"):
+            await batch_stt.aclose()
         database.close()
         log.info("session %s closed", session_id)
 

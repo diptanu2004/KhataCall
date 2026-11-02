@@ -134,6 +134,8 @@ khatacall/
       schema.sql  db.py  repo.py
     channel/
       degrade.py         # telephone channel simulation (shared)
+      noise.py           # the noise bank loader (shared)
+      phone.py           # phone-line mode: one utterance through the eval's mobile chain
     static/index.html
   eval/
     corpus/scripts.csv   # ground-truth labels (committed)
@@ -155,8 +157,9 @@ real-time frame cadence; switching to it is an M4 latency experiment.
 - Client → server: binary PCM16 mono frames (16 kHz unless docs say otherwise);
   JSON `{type: "start" | "stop" | "config", phone_mode?, snr_db?, loss_pct?}`
 - Server → client: JSON `{type: "state" | "transcript" | "agent_text" |
-  "ledger_update" | "latency", ...}` and binary TTS audio frames
-  (format per Timbre docs).
+  "ledger_update" | "latency" | "heard_audio" | "notice" | "error", ...}` and
+  binary TTS audio frames (format per Timbre docs). `heard_audio` (phone mode)
+  carries the degraded 8 kHz clip Prisma was sent, base64.
 
 ### Agent tools (`agent/tools.py`)
 | Tool | Args | Writes? |
@@ -271,7 +274,7 @@ rupaye udhaar likh doon?" → "haan" → Rs 550, with `ledger_update` pushed to 
 - [x] Eval runner with cache, `--dry-run`, `--max-calls` (D-037; Prisma REST is 1 request at a time)
 - [x] STT-level metrics across the condition grid — 60 takes x 12 conditions, D-038
 - [x] Task-level eval: transcripts through Evon, scored by the executor's own parsing — 70% clean, 25% harsh (D-039)
-- [ ] Phone-line mode toggle in the UI (SNR + loss sliders) using the same `degrade.py` → moved to M4, **Mon Nov 2**
+- [x] Phone-line mode toggle in the UI using the same `degrade.py` → done in M4, Nov 2 (D-041)
 - [x] Baseline charts committed to `eval/results/` (baseline_2026-10-23_*.png)
 
 **Done when:** baseline numbers exist for every condition, with the API call count known.
@@ -288,8 +291,8 @@ once with fixes on. Every fix sits behind one switch, so "before" and "after"
 come from the same commit and the same cached transcripts.
 
 **Mon Nov 2**
-- [ ] Phone-line mode: UI switch + SNR/loss sliders; live audio through `degrade.py` before STT;
-      digit-by-digit amount read-back on in phone mode (M3 backlog; the read-back already exists)
+- [x] Phone-line mode: UI switch + noise/loss pickers (the eval grid's values, with the measured
+      result shown); utterance degraded by `degrade.py`, sent to Prisma REST; digit read-back on (D-041)
 - [ ] Fix switch in the agent, and `run_eval --fixes off|on`
 - [ ] Fix 1, payment guard: "ne" + a giving verb (de/diye/die/diya/jama) → `record_payment` (D-039 #1)
 - [ ] Fix 2, number spellings: "nao", "ikkes", "unteen", filler "mile" (D-031, D-038)

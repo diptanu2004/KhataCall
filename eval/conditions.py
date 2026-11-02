@@ -14,9 +14,9 @@ import zlib
 from pathlib import Path
 
 import numpy as np
-import soundfile as sf
 
 from app.channel.degrade import Condition
+from app.channel.noise import load_noise_bank as _load_noise_bank
 
 __all__ = ["CONDITIONS", "NOISE_DIR", "by_id", "load_noise_bank", "noise_for", "rng_for"]
 
@@ -58,13 +58,7 @@ def rng_for(utterance_id: str, condition_id: str) -> np.random.Generator:
 
 def load_noise_bank(directory: Path = NOISE_DIR, pattern: str = "freesound_*.wav") -> dict[str, np.ndarray]:
     """The imported noise files, as float32 16 kHz mono, by file stem."""
-    bank = {}
-    for path in sorted(directory.glob(pattern)):
-        audio, rate = sf.read(path, dtype="float32")
-        if rate != 16_000 or audio.ndim != 1:
-            raise ValueError(f"{path.name} is not 16 kHz mono; re-import it with scripts.get_noise")
-        bank[path.stem] = audio
-    return bank
+    return _load_noise_bank(directory, pattern)
 
 
 def noise_for(utterance_id: str, bank: dict[str, np.ndarray]) -> tuple[str, np.ndarray]:
