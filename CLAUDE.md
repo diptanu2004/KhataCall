@@ -129,7 +129,8 @@ khatacall/
       prompts.py         # system prompt (Hinglish shop assistant)
       tools.py           # tool schemas + Pydantic arg models
       executor.py        # validation, name resolution, confirmation gate
-      fixes.py           # the M4 fixes behind one switch: payment guard, spellings
+      fixes.py           # the M4 fixes behind one switch: payment guard, spellings,
+                         # units, heard check (numbers), name check
     nlu/
       numbers.py         # Hinglish/Hindi/English spoken numbers → paise
       names.py           # honorific stripping + fuzzy match
@@ -319,7 +320,8 @@ come from the same commit and the same cached transcripts.
 - [x] STT on the 120 held-out takes x 12 conditions — done Nov 3: Rs 35.75, 9 Prisma 504s re-fetched
 - [x] Task stage on all 180, fixes off and on → before/after charts; dev and held-out reported separately
       — done Nov 3: `eval/results/m4_2026-11-03*` (D-044)
-- [ ] At most one more fix if held-out shows a new failure mode; re-run (no credits)
+- [x] The one extra fix: **fix 5, name check** — the customer Evon names must be one the owner said
+      (held out: 36 wrong → caught, 0 made worse; harsh wrong 63.3% → 47.5%) — D-045
 - [ ] **Decision gate:** if the 120 are not recorded by Wed noon, do before/after on the 60 and say so
 
 **Thu Nov 5**

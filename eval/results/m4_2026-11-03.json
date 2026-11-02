@@ -328,10 +328,10 @@
    "task": {
     "n": 180,
     "correct": 127,
-    "caught": 35,
-    "wrong": 18,
+    "caught": 37,
+    "wrong": 16,
     "accuracy": 0.7056,
-    "wrong_rate": 0.1
+    "wrong_rate": 0.0889
    },
    "task_before": {
     "n": 180,
@@ -366,10 +366,10 @@
    "task": {
     "n": 180,
     "correct": 119,
-    "caught": 47,
-    "wrong": 14,
+    "caught": 48,
+    "wrong": 13,
     "accuracy": 0.6611,
-    "wrong_rate": 0.0778
+    "wrong_rate": 0.0722
    },
    "task_before": {
     "n": 180,
@@ -404,10 +404,10 @@
    "task": {
     "n": 180,
     "correct": 114,
-    "caught": 54,
-    "wrong": 12,
+    "caught": 56,
+    "wrong": 10,
     "accuracy": 0.6333,
-    "wrong_rate": 0.0667
+    "wrong_rate": 0.0556
    },
    "task_before": {
     "n": 180,
@@ -442,10 +442,10 @@
    "task": {
     "n": 180,
     "correct": 91,
-    "caught": 59,
-    "wrong": 30,
+    "caught": 62,
+    "wrong": 27,
     "accuracy": 0.5056,
-    "wrong_rate": 0.1667
+    "wrong_rate": 0.15
    },
    "task_before": {
     "n": 180,
@@ -480,10 +480,10 @@
    "task": {
     "n": 180,
     "correct": 49,
-    "caught": 57,
-    "wrong": 74,
+    "caught": 66,
+    "wrong": 65,
     "accuracy": 0.2722,
-    "wrong_rate": 0.4111
+    "wrong_rate": 0.3611
    },
    "task_before": {
     "n": 180,
@@ -518,10 +518,10 @@
    "task": {
     "n": 180,
     "correct": 83,
-    "caught": 57,
-    "wrong": 40,
+    "caught": 62,
+    "wrong": 35,
     "accuracy": 0.4611,
-    "wrong_rate": 0.2222
+    "wrong_rate": 0.1944
    },
    "task_before": {
     "n": 180,
@@ -556,10 +556,10 @@
    "task": {
     "n": 180,
     "correct": 32,
-    "caught": 37,
-    "wrong": 111,
+    "caught": 61,
+    "wrong": 87,
     "accuracy": 0.1778,
-    "wrong_rate": 0.6167
+    "wrong_rate": 0.4833
    },
    "task_before": {
     "n": 180,
@@ -787,10 +787,10 @@
     "task": {
      "n": 120,
      "correct": 79,
-     "caught": 28,
-     "wrong": 13,
+     "caught": 30,
+     "wrong": 11,
      "accuracy": 0.6583,
-     "wrong_rate": 0.1083
+     "wrong_rate": 0.0917
     },
     "task_before": {
      "n": 120,
@@ -825,10 +825,10 @@
     "task": {
      "n": 120,
      "correct": 71,
-     "caught": 40,
-     "wrong": 9,
+     "caught": 41,
+     "wrong": 8,
      "accuracy": 0.5917,
-     "wrong_rate": 0.075
+     "wrong_rate": 0.0667
     },
     "task_before": {
      "n": 120,
@@ -863,10 +863,10 @@
     "task": {
      "n": 120,
      "correct": 66,
-     "caught": 46,
-     "wrong": 8,
+     "caught": 48,
+     "wrong": 6,
      "accuracy": 0.55,
-     "wrong_rate": 0.0667
+     "wrong_rate": 0.05
     },
     "task_before": {
      "n": 120,
@@ -901,10 +901,10 @@
     "task": {
      "n": 120,
      "correct": 55,
-     "caught": 46,
-     "wrong": 19,
+     "caught": 48,
+     "wrong": 17,
      "accuracy": 0.4583,
-     "wrong_rate": 0.1583
+     "wrong_rate": 0.1417
     },
     "task_before": {
      "n": 120,
@@ -939,10 +939,10 @@
     "task": {
      "n": 120,
      "correct": 29,
-     "caught": 42,
-     "wrong": 49,
+     "caught": 48,
+     "wrong": 43,
      "accuracy": 0.2417,
-     "wrong_rate": 0.4083
+     "wrong_rate": 0.3583
     },
     "task_before": {
      "n": 120,
@@ -977,10 +977,10 @@
     "task": {
      "n": 120,
      "correct": 53,
-     "caught": 40,
-     "wrong": 27,
+     "caught": 44,
+     "wrong": 23,
      "accuracy": 0.4417,
-     "wrong_rate": 0.225
+     "wrong_rate": 0.1917
     },
     "task_before": {
      "n": 120,
@@ -1015,10 +1015,10 @@
     "task": {
      "n": 120,
      "correct": 18,
-     "caught": 26,
-     "wrong": 76,
+     "caught": 45,
+     "wrong": 57,
      "accuracy": 0.15,
-     "wrong_rate": 0.6333
+     "wrong_rate": 0.475
     },
     "task_before": {
      "n": 120,
@@ -1359,10 +1359,10 @@
     "task": {
      "n": 60,
      "correct": 36,
-     "caught": 13,
-     "wrong": 11,
+     "caught": 14,
+     "wrong": 10,
      "accuracy": 0.6,
-     "wrong_rate": 0.1833
+     "wrong_rate": 0.1667
     },
     "task_before": {
      "n": 60,
@@ -1397,10 +1397,10 @@
     "task": {
      "n": 60,
      "correct": 20,
-     "caught": 15,
-     "wrong": 25,
+     "caught": 18,
+     "wrong": 22,
      "accuracy": 0.3333,
-     "wrong_rate": 0.4167
+     "wrong_rate": 0.3667
     },
     "task_before": {
      "n": 60,
@@ -1435,10 +1435,10 @@
     "task": {
      "n": 60,
      "correct": 30,
-     "caught": 17,
-     "wrong": 13,
+     "caught": 18,
+     "wrong": 12,
      "accuracy": 0.5,
-     "wrong_rate": 0.2167
+     "wrong_rate": 0.2
     },
     "task_before": {
      "n": 60,
@@ -1473,10 +1473,10 @@
     "task": {
      "n": 60,
      "correct": 14,
-     "caught": 11,
-     "wrong": 35,
+     "caught": 16,
+     "wrong": 30,
      "accuracy": 0.2333,
-     "wrong_rate": 0.5833
+     "wrong_rate": 0.5
     },
     "task_before": {
      "n": 60,
@@ -33190,15 +33190,15 @@
     "customer Sharma instead of Bisht",
     "amount unparseable"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Bisht",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Bisht",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "proposal": {
@@ -33228,14 +33228,14 @@
    "reasons_before": [
     "customer Sharma instead of Goyal"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Goyal"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Goyal"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "record_payment",
@@ -37454,14 +37454,14 @@
    "reasons_before": [
     "customer Sharma instead of Khanna"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Khanna"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Khanna"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -38606,14 +38606,14 @@
    ],
    "outcome_after": "wrong",
    "reasons_after": [
-    "customer Sharma instead of Pandey",
-    "amount 100000 instead of 250000"
+    "amount 100000 instead of 250000",
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
-    "customer Sharma instead of Pandey",
-    "amount 100000 instead of 250000"
+    "amount 100000 instead of 250000",
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "record_payment",
@@ -44403,14 +44403,14 @@
    "reasons_before": [
     "customer Sharma instead of Pandey"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Pandey"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Pandey"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "record_payment",
@@ -45325,14 +45325,14 @@
    "reasons_before": [
     "customer Sharma instead of Negi"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Negi"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Negi"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "get_balance",
@@ -47772,14 +47772,14 @@
    "reasons_before": [
     "customer Sharma instead of Negi"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Negi"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Negi"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -50304,14 +50304,14 @@
    "reasons_before": [
     "customer Sharma instead of Pandey"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Pandey"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Pandey"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "record_payment",
@@ -50648,15 +50648,15 @@
     "customer Sharma instead of Negi",
     "amount 15000 instead of 160000"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Negi",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Negi",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -50727,14 +50727,14 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Goyal",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Goyal",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "proposal": {
@@ -53593,15 +53593,15 @@
     "customer Sharma instead of Saini",
     "amount unparseable"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Saini",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Saini",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "proposal": {
@@ -53811,14 +53811,14 @@
    "reasons_before": [
     "customer Sharma instead of Negi"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Negi"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Negi"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -53852,14 +53852,14 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent get_balance instead of add_credit",
-    "customer Sharma instead of Bisht",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent get_balance instead of add_credit",
-    "customer Sharma instead of Bisht",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "proposal": {
@@ -54364,14 +54364,14 @@
    "reasons_before": [
     "customer Sharma instead of Tiwari"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Tiwari"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Tiwari"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -54505,14 +54505,14 @@
    ],
    "outcome_after": "wrong",
    "reasons_after": [
-    "customer Sharma instead of Saini",
-    "amount 65000 instead of 62500"
+    "amount 65000 instead of 62500",
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
-    "customer Sharma instead of Saini",
-    "amount 65000 instead of 62500"
+    "amount 65000 instead of 62500",
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -54614,15 +54614,15 @@
     "customer Sharma instead of Khanna",
     "amount unparseable"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Khanna",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Khanna",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "proposal": {
@@ -54652,14 +54652,14 @@
    "reasons_before": [
     "customer Sharma instead of Dubey"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Dubey"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Dubey"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -54905,15 +54905,15 @@
     "customer Sharma instead of Kashyap",
     "amount 15000 instead of 100000"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Kashyap",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Kashyap",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -55770,15 +55770,15 @@
     "customer Sharma instead of Sethi",
     "amount unparseable"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Sethi",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Sethi",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "proposal": {
@@ -55903,14 +55903,14 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Negi",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Negi",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -56237,14 +56237,14 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Dhiman",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Dhiman",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -56477,14 +56477,14 @@
    ],
    "outcome_after": "wrong",
    "reasons_after": [
-    "customer Sharma instead of Pandey",
-    "amount 2800000 instead of 250000"
+    "amount 2800000 instead of 250000",
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
-    "customer Sharma instead of Pandey",
-    "amount 2800000 instead of 250000"
+    "amount 2800000 instead of 250000",
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "record_payment",
@@ -56554,14 +56554,14 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Rawat",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Rawat",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -56626,14 +56626,14 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Saini",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Saini",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -56703,15 +56703,15 @@
     "customer Sharma instead of Sethi",
     "amount 15000 instead of 9900"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Sethi",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Sethi",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -56746,14 +56746,14 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Khanna",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Khanna",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -56788,14 +56788,14 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Dubey",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Dubey",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -56830,15 +56830,15 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Thakur",
-    "amount 750 instead of 75000"
+    "amount 750 instead of 75000",
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Thakur",
-    "amount 750 instead of 75000"
+    "amount 750 instead of 75000",
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -56947,15 +56947,15 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Goyal",
-    "amount 250200 instead of 250000"
+    "amount 250200 instead of 250000",
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Goyal",
-    "amount 250200 instead of 250000"
+    "amount 250200 instead of 250000",
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -57207,13 +57207,13 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of get_balance",
-    "customer Sharma instead of Joshi"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of get_balance",
-    "customer Sharma instead of Joshi"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -57271,14 +57271,14 @@
    "reasons_before": [
     "customer Sharma instead of Chauhan"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Chauhan"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Chauhan"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "get_balance",
@@ -57374,13 +57374,13 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of get_balance",
-    "customer Sharma instead of Sethi"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of get_balance",
-    "customer Sharma instead of Sethi"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -57615,13 +57615,13 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of get_balance",
-    "customer Sharma instead of Malhotra"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of get_balance",
-    "customer Sharma instead of Malhotra"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -60178,15 +60178,15 @@
     "customer Sharma instead of Negi",
     "amount unparseable"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Negi",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Negi",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "proposal": {
@@ -62722,14 +62722,14 @@
    "reasons_before": [
     "customer Sharma instead of Pandey"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Pandey"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Pandey"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "record_payment",
@@ -63056,13 +63056,13 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Thakur"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Thakur"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -63091,14 +63091,14 @@
    "reasons_before": [
     "customer Sharma instead of Negi"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Negi"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Negi"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "record_payment",
@@ -63127,14 +63127,14 @@
    "reasons_before": [
     "customer Sharma instead of Bisht"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Bisht"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Bisht"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "record_payment",
@@ -63163,14 +63163,14 @@
    "reasons_before": [
     "customer Sharma instead of Goyal"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Goyal"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Goyal"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "record_payment",
@@ -63563,13 +63563,13 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of get_balance",
-    "customer Sharma instead of Sethi"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of get_balance",
-    "customer Sharma instead of Sethi"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -65762,15 +65762,15 @@
     "customer Sharma instead of Gupta",
     "amount 15000 instead of 25000"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Gupta",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Gupta",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -65801,15 +65801,15 @@
     "customer Sharma instead of Verma",
     "amount 15000 instead of 12500"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Verma",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Verma",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -65876,15 +65876,15 @@
     "customer Sharma instead of Mishra",
     "amount 15000 instead of 17500"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Mishra",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Mishra",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -66088,15 +66088,15 @@
     "customer Sharma instead of Saini",
     "amount 15000 instead of 125000"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Saini",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Saini",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -66267,14 +66267,14 @@
    "reasons_before": [
     "customer Sharma instead of Thakur"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Thakur"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Thakur"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -66308,14 +66308,14 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent get_balance instead of add_credit",
-    "customer Sharma instead of Negi",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent get_balance instead of add_credit",
-    "customer Sharma instead of Negi",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "proposal": {
@@ -66416,15 +66416,15 @@
     "customer Sharma instead of Malhotra",
     "amount 15000 instead of 9900"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Malhotra",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Malhotra",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -66959,15 +66959,15 @@
     "customer Sharma instead of Rawat",
     "amount 15000 instead of 42000"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Rawat",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Rawat",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -66998,15 +66998,15 @@
     "customer Sharma instead of Chauhan",
     "amount 15000 instead of 56000"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Chauhan",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Chauhan",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -67078,14 +67078,14 @@
    "reasons_before": [
     "customer Sharma instead of Bansal"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Bansal"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Bansal"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -67115,15 +67115,15 @@
     "customer Sharma instead of Sethi",
     "amount 15000 instead of 81500"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Sethi",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Sethi",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -67190,15 +67190,15 @@
    "reasons_before": [
     "customer Sharma instead of Dubey"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Dubey",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Dubey",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -67265,15 +67265,15 @@
     "customer Sharma instead of Negi",
     "amount 15000 instead of 160000"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Negi",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Negi",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -67343,15 +67343,15 @@
     "customer Sharma instead of Goyal",
     "amount 15000 instead of 300000"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Goyal",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Goyal",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -67382,15 +67382,15 @@
     "customer Sharma instead of Malhotra",
     "amount 15000 instead of 20000"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Malhotra",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Malhotra",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -67533,15 +67533,15 @@
    "reasons_before": [
     "customer Sharma instead of Rastogi"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Rastogi",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Rastogi",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -67601,14 +67601,14 @@
    "reasons_before": [
     "customer Sharma instead of Dhiman"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Dhiman"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Dhiman"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -67673,14 +67673,14 @@
    "reasons_before": [
     "customer Sharma instead of Saini"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Saini"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Saini"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -67784,14 +67784,14 @@
    "reasons_before": [
     "customer Sharma instead of Khanna"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Khanna"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Khanna"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -67890,15 +67890,15 @@
     "customer Sharma instead of Verma",
     "amount 15000 instead of 40000"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Verma",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Verma",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -68002,14 +68002,14 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Gupta",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Gupta",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "proposal": {
@@ -68181,14 +68181,14 @@
    ],
    "outcome_after": "wrong",
    "reasons_after": [
-    "customer Sharma instead of Tiwari",
-    "amount 20000 instead of 17500"
+    "amount 20000 instead of 17500",
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
-    "customer Sharma instead of Tiwari",
-    "amount 20000 instead of 17500"
+    "amount 20000 instead of 17500",
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "record_payment",
@@ -68299,14 +68299,14 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Saini",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Saini",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "proposal": {
@@ -68373,15 +68373,15 @@
     "customer Sharma instead of Sethi",
     "amount unparseable"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Sethi",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Sethi",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "proposal": {
@@ -68512,14 +68512,14 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Negi",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Negi",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -68593,14 +68593,14 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Goyal",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Goyal",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -68665,14 +68665,14 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Ahuja",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Ahuja",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -68851,14 +68851,14 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Dhiman",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Dhiman",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -69002,14 +69002,14 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Yadav",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Yadav",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -69122,14 +69122,14 @@
    ],
    "outcome_after": "wrong",
    "reasons_after": [
-    "customer Sharma instead of Pandey",
-    "amount 2800000 instead of 250000"
+    "amount 2800000 instead of 250000",
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
-    "customer Sharma instead of Pandey",
-    "amount 2800000 instead of 250000"
+    "amount 2800000 instead of 250000",
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "record_payment",
@@ -69204,13 +69204,13 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Rawat"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Rawat"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -69244,15 +69244,15 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Chauhan",
-    "amount 5900 instead of 5500"
+    "amount 5900 instead of 5500",
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Chauhan",
-    "amount 5900 instead of 5500"
+    "amount 5900 instead of 5500",
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -69286,14 +69286,14 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Saini",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Saini",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -69324,15 +69324,15 @@
     "customer Sharma instead of Bansal",
     "amount unparseable"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Bansal",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Bansal",
+    "customer not heard: Sharma ji",
     "amount unparseable"
    ],
    "proposal": {
@@ -69367,14 +69367,14 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Sethi",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Sethi",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -69409,14 +69409,14 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Khanna",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Khanna",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -69493,15 +69493,15 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Thakur",
-    "amount 45000 instead of 75000"
+    "amount 45000 instead of 75000",
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Thakur",
-    "amount 45000 instead of 75000"
+    "amount 45000 instead of 75000",
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -69535,14 +69535,14 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Negi",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Negi",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -69573,15 +69573,15 @@
     "customer Sharma instead of Bisht",
     "amount 15000 instead of 1000000"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Bisht",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Bisht",
+    "customer not heard: Sharma ji",
     "amount not heard: dedh sau"
    ],
    "proposal": {
@@ -69615,13 +69615,13 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Goyal"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of record_payment",
-    "customer Sharma instead of Goyal"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -69877,13 +69877,13 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of get_balance",
-    "customer Sharma instead of Joshi"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of get_balance",
-    "customer Sharma instead of Joshi"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -69916,13 +69916,13 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of get_balance",
-    "customer Sharma instead of Rawat"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of get_balance",
-    "customer Sharma instead of Rawat"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -69984,13 +69984,13 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of get_balance",
-    "customer Sharma instead of Saini"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of get_balance",
-    "customer Sharma instead of Saini"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -70058,13 +70058,13 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of get_balance",
-    "customer Sharma instead of Sethi"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of get_balance",
-    "customer Sharma instead of Sethi"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",
@@ -70128,14 +70128,14 @@
    "reasons_before": [
     "customer Verma instead of Dubey"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Verma instead of Dubey"
+    "customer not heard: Verma ji"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Verma instead of Dubey"
+    "customer not heard: Verma ji"
    ],
    "proposal": {
     "tool": "get_balance",
@@ -70192,14 +70192,14 @@
    "reasons_before": [
     "customer Sharma instead of Negi"
    ],
-   "outcome_after": "wrong",
+   "outcome_after": "caught",
    "reasons_after": [
-    "customer Sharma instead of Negi"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
-   "outcome": "wrong",
+   "outcome": "caught",
    "reasons": [
-    "customer Sharma instead of Negi"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "get_balance",
@@ -70266,13 +70266,13 @@
    "outcome_after": "wrong",
    "reasons_after": [
     "intent add_credit instead of get_balance",
-    "customer Sharma instead of Goyal"
+    "customer not heard: Sharma ji"
    ],
    "fix_applied": null,
    "outcome": "wrong",
    "reasons": [
     "intent add_credit instead of get_balance",
-    "customer Sharma instead of Goyal"
+    "customer not heard: Sharma ji"
    ],
    "proposal": {
     "tool": "add_credit",

@@ -1213,3 +1213,44 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
      *because* of the held-out failures - its held-out gain must be reported
      as such.
 
+## D-045 — Fix 5, the name check: the extra fix the plan allowed
+- **Date:** 2026-11-03 · **Status:** Built, measured. Results file
+  `eval/results/m4_2026-11-03.json` now includes it (the fixes 1-4 version of
+  the same file, quoted in D-044, is commit 0ddc9ac).
+- **Chosen over general number spellings** (the other D-044 candidate): its
+  cause was first seen on the dev set (D-043 finding 2), so the held-out
+  numbers stay honest; it is deterministic and free to re-score; and it turns
+  wrong into caught rather than touching how money is parsed. The number
+  spellings stay a known limitation, safe because each one is a re-ask.
+- **What it does.** Every word of the customer name Evon passes (honorifics
+  stripped) must resemble a word the owner said: `fuzz.ratio >= 80` against the
+  transcript, else the executor asks "Kiska khata? Naam phir se boliye." In the
+  product the "said" includes the last 3 user turns, so "unka 200 aur likho"
+  after a turn naming Sharma ji still passes. A bare "ji" is left to the
+  existing resolver, which asks anyway.
+- **The threshold is measured, not guessed.** Over every distinct (transcript,
+  name) proposal in all 180 takes x 12 conditions: all 310 that resolved to the
+  right customer scored >= 85 (Evon copies names from the transcript,
+  misspellings included: "Vadma bhaiya", "tiwadi deedi"); all 51 that resolved
+  to a wrong customer scored < 75, nearly all of them "Sharma ji" against a
+  transcript with no Sharma in it. 80 sits in the gap.
+- **Effect, on top of fixes 1-4:** held out, 36 rows wrong → caught, nothing
+  else moved - no correct answer lost. It covers 36 of the 65 "customer Sharma"
+  rows; the other 29 also have the wrong intent, and the scorer deliberately
+  still counts a row with any confident wrong value as wrong.
+- **All five fixes, correct / wrong, before → after:**
+
+| condition | held out (n=120) | dev (n=60) |
+|---|---|---|
+| clean | 68.3/6.7 → **71.7/3.3** | 70.0/11.7 → 80.0/8.3 |
+| mob_snr10 | 52.5/10.0 → **55.0/5.0** | 71.7/10.0 → 80.0/6.7 |
+| mob_snr5 | 45.8/19.2 → **45.8/14.2** | 55.0/20.0 → 60.0/16.7 |
+| mob_snr0 | 24.2/42.5 → **24.2/35.8** | 28.3/46.7 → 33.3/36.7 |
+| mob_worst | 43.3/25.8 → **44.2/19.2** | 45.0/25.0 → 50.0/20.0 |
+| mob_harsh | 15.0/65.0 → **15.0/47.5** | 25.0/58.3 → 23.3/50.0 |
+
+- **The story for the README:** the fixes barely move *correct* in noise - no
+  code recovers words the line destroyed - but they cut *wrong* by a quarter
+  to a half, by refusing to act on what was not heard. On a ledger, a re-ask
+  costs seconds; a wrong entry costs money and trust.
+

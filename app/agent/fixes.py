@@ -9,6 +9,7 @@ the switch is an object passed explicitly rather than a global.
     fix 2  number spellings  "ikkes", "unteen", "nao"; "mile" as filler
     fix 3  unit quantities   "paanch kilo", "do bori" parse as 5 and 2
     fix 4  heard check       the number Evon passes must be one the owner said
+    fix 5  name check        the customer Evon names must be one the owner said
 
 The product runs with everything on (`ALL`); the eval's "before" uses `NONE`.
 """
@@ -18,9 +19,12 @@ from dataclasses import dataclass, replace
 from fractions import Fraction
 from typing import Any, Literal
 
+from rapidfuzz import fuzz
+
+from app.nlu.names import strip_honorifics
 from app.nlu.numbers import heard_values, normalise
 
-__all__ = ["ALL", "NONE", "Fixes", "apply_to_proposal", "money_direction", "was_heard"]
+__all__ = ["ALL", "NONE", "Fixes", "apply_to_proposal", "money_direction", "name_was_heard", "was_heard"]
 
 
 @dataclass(frozen=True)
@@ -29,10 +33,13 @@ class Fixes:
     number_spellings: bool = True
     unit_quantities: bool = True
     heard_check: bool = True
+    name_check: bool = True
 
 
 ALL = Fixes()
-NONE = replace(ALL, payment_guard=False, number_spellings=False, unit_quantities=False, heard_check=False)
+NONE = replace(
+    ALL, payment_guard=False, number_spellings=False, unit_quantities=False, heard_check=False, name_check=False
+)
 
 
 # --- fix 1: the payment guard ------------------------------------------------
@@ -81,6 +88,28 @@ def money_direction(utterance: str) -> Literal["payment", "credit"] | None:
 
 def was_heard(value: Fraction, utterance: str, *, spelling_fixes: bool = True) -> bool:
     return abs(value) in heard_values(utterance, spelling_fixes=spelling_fixes)
+
+
+# --- fix 5: the name check -----------------------------------------------------
+#
+# The twin of fix 4, for names. When noise swallows the name, Evon supplies one -
+# and it supplies "Sharma", the example in its own system prompt (D-043, D-044:
+# 65 wrong rows on the held-out set). Every name word Evon passes must therefore
+# resemble a word the owner said. Measured on all 180 takes x 12 conditions
+# (D-045): proposals that resolved to the right customer all scored >= 85,
+# because Evon copies names from the transcript, misspellings and all; the ones
+# that resolved to a wrong customer all scored < 75. 80 sits between.
+#
+# "Said" includes the last few user turns, so "unka 200 aur likho" after a turn
+# that named Sharma ji still passes in a real conversation.
+
+NAME_HEARD = 80.0
+
+
+def name_was_heard(name: str, context: str) -> bool:
+    words = [w for w in (normalise(t) for t in _WORD.findall(context.lower())) if w]
+    parts = [w for w in (normalise(t) for t in strip_honorifics(name).split()) if w]
+    return all(any(fuzz.ratio(part, w) >= NAME_HEARD for w in words) for part in parts)
 
 
 def apply_to_proposal(

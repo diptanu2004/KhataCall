@@ -29,9 +29,9 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from app.agent.fixes import ALL, Fixes, apply_to_proposal, was_heard
+from app.agent.fixes import ALL, Fixes, apply_to_proposal, name_was_heard, was_heard
 from app.agent.tools import args_model_for
-from app.nlu.names import Decision, match_name
+from app.nlu.names import Decision, has_real_name, match_name
 from app.nlu.numbers import normalise, parse_amount_paise, parse_number, parse_signed_quantity
 
 __all__ = ["Outcome", "Score", "score_call"]
@@ -127,9 +127,18 @@ def score_call(
     # --- customer: resolved the way the executor resolves it ---
     if row.get("customer"):
         spoken = str(args.get("customer_name") or "")
-        result = match_name(spoken, known_customers) if spoken else None
-        details["customer_decision"] = result.decision.value if result else "missing"
-        if result is None:
+        unheard = (
+            fixes.name_check
+            and utterance is not None
+            and has_real_name(spoken)
+            and not name_was_heard(spoken, utterance)
+        )
+        result = match_name(spoken, known_customers) if spoken and not unheard else None
+        details["customer_decision"] = "not heard" if unheard else (result.decision.value if result else "missing")
+        if unheard:
+            customer_ok = False
+            caught.append(f"customer not heard: {spoken}")  # the executor asks for the name
+        elif result is None:
             customer_ok = False
             caught.append("no customer name")
         elif result.decision is Decision.MATCH:

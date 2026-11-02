@@ -179,3 +179,57 @@ def test_without_an_utterance_the_heard_check_does_not_apply(executor):
     """Callers that have no transcript (tests, tools) keep the old behaviour."""
     call = ToolCall("add_credit", {"customer_name": "Verma bhaiya", "amount_spoken": "dedh sau"})
     assert executor.handle(call).outcome is Outcome.CONFIRMING
+
+
+# --- fix 5: the customer must be one the owner named -------------------------------
+
+
+@pytest.mark.parametrize(
+    "name,heard",
+    [
+        ("Sharma ji", "sharma ji ka dedh sau udhar likho"),
+        ("Vadma bhaiya", "vadma bhaiya ne chaar sau die"),  # Evon copies Prisma's spelling
+        ("Tiwadi deedi", "tiwadi deedi ka hisaab batao"),
+        ("Sharma ji", "sharma jitah"),  # the name was heard, even if the rest was not
+    ],
+)
+def test_names_the_owner_said_pass(name, heard):
+    from app.agent.fixes import name_was_heard
+
+    assert name_was_heard(name, heard)
+
+
+@pytest.mark.parametrize(
+    "name,heard",
+    [
+        ("Sharma ji", "theek hai dus hazaar jama"),  # D-044: the prompt's example name, supplied
+        ("Sharma ji", "pachpan rupay udhar likho"),
+        ("Verma ji", "sharma ji ka assi rupay"),  # a different customer is not the same name
+    ],
+)
+def test_names_the_owner_did_not_say_are_refused(name, heard):
+    from app.agent.fixes import name_was_heard
+
+    assert not name_was_heard(name, heard)
+
+
+def test_the_executor_asks_for_the_name_rather_than_supply_one(executor):
+    call = ToolCall("add_credit", {"customer_name": "Verma bhaiya", "amount_spoken": "pachpan"})
+    reply = executor.handle(call, utterance="pachpan rupay udhar likho")
+    assert reply.outcome is not Outcome.CONFIRMING
+    assert "Naam phir se" in reply.speech
+
+
+def test_a_name_from_an_earlier_turn_still_counts(executor):
+    """ "unka 200 aur likho" names nobody, but the turn before did. """
+    call = ToolCall("add_credit", {"customer_name": "Verma bhaiya", "amount_spoken": "do sau"})
+    reply = executor.handle(
+        call, utterance="unka do sau aur likho", context="verma bhaiya ka hisaab batao unka do sau aur likho"
+    )
+    assert reply.outcome is Outcome.CONFIRMING
+
+
+def test_a_bare_honorific_is_left_to_the_resolver(executor):
+    call = ToolCall("add_credit", {"customer_name": "ji", "amount_spoken": "do sau"})
+    reply = executor.handle(call, utterance="ji do sau likho")
+    assert "Naam phir se" not in reply.speech

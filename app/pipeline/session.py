@@ -55,6 +55,8 @@ SOMETHING_BROKE = "Maaf kijiye, kuch gadbad ho gayi. Phir se boliye?"
 # Turns of dialogue kept as context. Evon has a 128K window, but a long history costs
 # latency on every turn and a kirana exchange rarely needs more.
 MAX_HISTORY_MESSAGES = 12
+# User turns the name check may find a customer's name in (fix 5).
+RECENT_USER_TURNS = 3
 
 
 class LiveSTT:
@@ -331,7 +333,10 @@ class Session:
             # Evon proposed something new while a write was waiting; the owner moved on.
             self._executor.cancel()
 
-        result = self._executor.handle(call, utterance=utterance)
+        # The name check looks at the last few things the owner said, not just this
+        # turn: "unka 200 aur likho" names nobody, but the previous turn did.
+        recent = [m.content for m in self._history if m.role == "user"][-RECENT_USER_TURNS:]
+        result = self._executor.handle(call, utterance=utterance, context=" ".join(recent))
         if result.ledger_changed:
             await self._send_ledger()
         if result.outcome is Outcome.CONFIRMING:

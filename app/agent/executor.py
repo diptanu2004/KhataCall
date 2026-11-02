@@ -38,8 +38,8 @@ from pydantic import ValidationError
 from app.adapters.base import ToolCall
 from app.agent.tools import WRITE_TOOLS, args_model_for
 from app.ledger.repo import Ledger, LedgerError
-from app.nlu.names import Decision, match_name
-from app.agent.fixes import ALL, Fixes, apply_to_proposal, was_heard
+from app.nlu.names import Decision, has_real_name, match_name
+from app.agent.fixes import ALL, Fixes, apply_to_proposal, name_was_heard, was_heard
 from app.nlu.numbers import parse_amount_paise, parse_number, parse_signed_quantity
 
 log = logging.getLogger(__name__)
@@ -127,6 +127,7 @@ class Executor:
         # The M4 fixes (app/agent/fixes.py). On in the product; the eval turns them off for "before".
         self.fixes = fixes
         self._utterance: str | None = None  # what the owner said this turn, for the heard check
+        self._context: str | None = None  # this turn and the last few, for the name check
         # Phone mode has no STT confidence to key off (D-004), so it spells amounts out.
         self.spell_amounts = spell_amounts
         self._pending: _Pending | None = None
@@ -144,13 +145,15 @@ class Executor:
 
     # --- a proposal from Evon ---
 
-    def handle(self, call: ToolCall, *, utterance: str | None = None) -> Reply:
+    def handle(self, call: ToolCall, *, utterance: str | None = None, context: str | None = None) -> Reply:
         """Validate and act on a tool call. Writes become pending, reads answer now.
 
         `utterance` is what the owner said (the transcript); the payment guard reads
         its grammar to correct a credit/payment mix-up before anything is read back.
+        `context` is this turn plus recent ones: a name may come from an earlier turn.
         """
         self._utterance = utterance
+        self._context = context if context is not None else utterance
         if utterance is not None:
             name, arguments, changed = apply_to_proposal(self.fixes, utterance, call.name, call.arguments)
             if changed:
@@ -188,6 +191,12 @@ class Executor:
             return True
         return was_heard(value, self._utterance, spelling_fixes=self.fixes.number_spellings)
 
+    def _name_heard(self, name: str) -> bool:
+        """Fix 5: was this customer actually named by the owner? True when unchecked."""
+        if not self.fixes.name_check or self._context is None or not has_real_name(name):
+            return True  # a bare "ji" is the resolver's business: it asks anyway
+        return name_was_heard(name, self._context)
+
     # --- money ---
 
     def _propose_entry(self, call: ToolCall, args) -> Reply:
@@ -196,6 +205,8 @@ class Executor:
             # Never guess an amount, and never take one the owner did not say.
             return self._say("Amount samajh nahi aaya. Kitne rupaye?")
 
+        if not self._name_heard(args.customer_name):
+            return self._say("Kiska khata? Naam phir se boliye.")
         resolved = self._resolve_customer(args.customer_name)
         if isinstance(resolved, Reply):
             return resolved
@@ -219,6 +230,8 @@ class Executor:
         return Reply(question, Outcome.CONFIRMING)
 
     def _balance(self, args) -> Reply:
+        if not self._name_heard(args.customer_name):
+            return self._say("Kiska hisaab? Naam phir se boliye.")
         resolved = self._resolve_customer(args.customer_name, creating=False)
         if isinstance(resolved, Reply):
             return resolved
