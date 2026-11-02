@@ -1153,3 +1153,63 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
   twin of fix 1 ("aaye/aa gaye/aayi" → positive, "bik gaye/nikal gaye" →
   negative). One dev take (154) motivates it - not enough on its own.
 
+## D-044 — Held-out result: the fixes cut wrong answers everywhere; correct gains are smaller
+- **Date:** 2026-11-03 · **Status:** Measured. `eval/results/m4_2026-11-03.json`,
+  charts `m4_2026-11-03_heldout_*.png` (and `_dev_*`).
+- **Setup:** the 120 takes recorded Nov 2-3, never looked at while designing
+  fixes 1-4, x 12 conditions = 1,440 Prisma calls (Rs 35.75 incl. 9 HTTP 504
+  gateway timeouts from Prisma, re-fetched). 764 distinct transcripts across all
+  180 takes went to Evon (Kaggle), no errors. Each row scored fixes off and on
+  from the same cached proposal.
+
+| held out (n=120 per condition) | correct before → after | wrong before → after |
+|---|---|---|
+| clean | 68.3% → **71.7%** | 6.7% → **3.3%** |
+| landline | 65.8% → 70.0% | 7.5% → 3.3% |
+| mob | 67.5% → 70.8% | 10.0% → 6.7% |
+| mob_loss10 | 63.3% → 65.8% | 13.3% → 10.8% |
+| mob_snr20 | 56.7% → 59.2% | 11.7% → 7.5% |
+| mob_snr10 | 52.5% → 55.0% | 10.0% → 6.7% |
+| mob_snr5 | 45.8% → 45.8% | 19.2% → 15.8% |
+| mob_snr0 | 24.2% → 24.2% | 42.5% → 40.8% |
+| mob_worst | 43.3% → 44.2% | 25.8% → 22.5% |
+| mob_harsh | 15.0% → 15.0% | 65.0% → 63.3% |
+
+- **The safety claim generalises; the accuracy claim only partly.** Across all
+  1,440 held-out rows the fixes moved 49 wrong answers (38 to a re-ask, 11 to
+  correct) and 20 re-asks to correct, and made 2 rows worse. Wrong falls in
+  every condition. Correct rises 2.5-4 points in quiet conditions against 8-10
+  on the dev set: the dev gains were partly fitted to the dev set's failures,
+  which is exactly what the split was for.
+- **Why correct moved less: number spellings outside the list.** Fix 2 listed
+  the three spellings the dev set showed. The held-out takes brought their own:
+  in the quiet conditions about 80 of 94 unparseable amounts are spellings like
+  "pachahattar" (75), "chiasi" (86), "ninyanave"/"ninnyanave" (99), "pandharh"
+  (15), "chialis" (40), plus "bada" for barah (12). Safe - each is a re-ask -
+  but a list of seen spellings does not generalise.
+- **The biggest wrong cause in noise is our own prompt.** In the noisy held-out
+  conditions, 59 wrong rows are "customer Sharma instead of X": when the name is
+  lost, Evon supplies *Sharma*, the example name in the system prompt (finding
+  2 of D-043, now at scale). The heard check covers amounts, not names.
+- **The two rows made worse:** "teen ke paanch liter hai" (tel heard as teen):
+  with units stripped, `parse_number` *adds* adjacent numbers, so "teen ke
+  paanch" reads as 8 - a pre-existing parser leniency that fix 3 exposed; and
+  "parle ji ke beech packet" repaired by Evon to "bees", refused by the heard
+  check (the same accepted cost as on the dev set).
+- **Held-out transcripts are a little worse than dev** (normalised WER 16.8% vs
+  12.7% clean, same gap in every condition). Mostly spelling: the same
+  rupay/die/k variants, more often, plus the unseen number spellings above.
+  These takes were also recorded ~10 dB louder (median peak -3 to -4 dBFS vs
+  -13.5); nothing clipped, and level should not matter after SNR mixing, but it
+  is a difference between the sets and is noted.
+- **Candidates for the one extra fix the plan allows (D-040), not yet built:**
+  1. *Name heard check* (the twin of fix 4): the customer name Evon passes must
+     be in the transcript or a recent user turn, else ask. Deterministic, free to
+     score, motivated on the dev set (D-043 finding 2); targets the 65
+     "customer Sharma" wrong rows.
+  2. *General number spellings*: accept a misspelt number word only if it is
+     close to exactly one table entry (the D-023 separation idea), so ten/teen
+     still refuse. Bigger accuracy lever, but touches money and would be chosen
+     *because* of the held-out failures - its held-out gain must be reported
+     as such.
+

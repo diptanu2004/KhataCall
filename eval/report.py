@@ -161,19 +161,30 @@ def fixes_chart(summary: dict, out: Path, label: str = "") -> bool:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("results", nargs="?", help="results JSON (default: newest baseline_*.json)")
+    parser.add_argument("results", nargs="?", help="results JSON (default: newest m4_*, else baseline_*)")
+    parser.add_argument(
+        "--split",
+        default="heldout",
+        choices=["heldout", "dev", "all"],
+        help="which takes to chart (default heldout: never used to design a fix)",
+    )
     args = parser.parse_args()
     if args.results:
         path = Path(args.results)
     else:
-        found = sorted(RESULTS_DIR.glob("baseline_*.json"))
+        found = sorted(RESULTS_DIR.glob("m4_*.json")) or sorted(RESULTS_DIR.glob("baseline_*.json"))
         if not found:
-            print("No baseline results yet; run eval.run_eval first.", file=sys.stderr)
+            print("No results yet; run eval.run_eval first.", file=sys.stderr)
             return 1
         path = found[-1]
     data = json.loads(path.read_text(encoding="utf-8"))
-    summary, conditions = data["summary"], data["conditions"]
+    conditions = data["conditions"]
+    split = (data.get("splits") or {}).get(args.split) if args.split != "all" else None
+    summary = split or data["summary"]
     stem = path.with_suffix("")
+    if split:
+        stem = stem.with_name(f"{stem.name}_{args.split}")
+        data["label"] = f"{data.get('label', '')} {args.split}".strip()
     written = [stem.with_name(stem.name + "_stt.png")]
     stt_chart(summary, written[0])
     curves = stem.with_name(stem.name + "_curves.png")

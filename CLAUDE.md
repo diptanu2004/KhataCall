@@ -103,7 +103,8 @@ FAKE_LLM=true uv run uvicorn app.main:app       # real Prisma + Timbre, canned E
 uv run python -m eval.run_eval --dry-run        # count planned API calls
 uv run python -m eval.run_eval --max-calls 800  # run eval with a hard cap (default 200)
 uv run python -m eval.run_eval --stages task    # re-score cached transcripts with Evon (no credits)
-uv run python -m eval.report                    # build charts from results
+uv run python -m eval.report                    # charts from the newest m4 results, held-out split
+uv run python -m eval.report --split dev        # the same for the dev set
 ```
 Keep this section accurate when commands change.
 
@@ -315,8 +316,9 @@ come from the same commit and the same cached transcripts.
 - [ ] [human] Evening: start Evon on Kaggle, update `.env`
 
 **Wed Nov 4**
-- [ ] STT on the 120 held-out takes x 12 conditions (1,440 calls, ~Rs 41, ~30 min serial)
-- [ ] Task stage on all 180, fixes off and on → before/after charts; dev and held-out reported separately
+- [x] STT on the 120 held-out takes x 12 conditions — done Nov 3: Rs 35.75, 9 Prisma 504s re-fetched
+- [x] Task stage on all 180, fixes off and on → before/after charts; dev and held-out reported separately
+      — done Nov 3: `eval/results/m4_2026-11-03*` (D-044)
 - [ ] At most one more fix if held-out shows a new failure mode; re-run (no credits)
 - [ ] **Decision gate:** if the 120 are not recorded by Wed noon, do before/after on the 60 and say so
 
