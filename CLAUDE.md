@@ -5,8 +5,8 @@ speaking Hinglish over a phone-quality line. Built for Gnani AI's Great Indian
 AI Internship Challenge, plus an evaluation harness that measures how the
 pipeline holds up on degraded telephone audio.
 
-**Hard deadline: Nov 10, 2026. Internal submission target: Fri Nov 6**
-(Diwali is Sun Nov 8). Feature freeze: end of Sun Nov 1.
+**Hard deadline: Tue Nov 10, 2026. Submit by Mon Nov 9** (a day of margin;
+Diwali is Sun Nov 8). Feature freeze: end of **Thu Nov 5** (re-planned Nov 2, D-040).
 
 ---
 
@@ -225,7 +225,7 @@ Mark tasks `[x]` as they are completed. `[human]` = Diptanu does this, not Claud
 ### M0 — Unblock (Tue Oct 6 – Wed Oct 7)
 - [x] [human] Register for the contest; read the IP/ownership terms before accepting
 - [x] ~~Request Evon v3.3 weights~~ **Not needed: the weights are not gated** (D-027)
-- [ ] [human] Ask on Gnani's Discord: is a hosted Evon endpoint available to participants? Does it support tool/function calling?
+- [x] ~~[human] Ask on Gnani's Discord about a hosted Evon~~ Moot: self-hosted Evon works, with native tool calls (D-027, D-031)
 - [x] [human] Find out how credits are counted → **per audio-hour / per 10k chars** (D-020)
 - [x] Scaffold the repo, pyproject, `.env.example`, adapter Protocols, fakes
 - [x] Smoke scripts: one Prisma transcription, one Timbre synthesis (verified against docs)
@@ -241,9 +241,9 @@ Mark tasks `[x]` as they are completed. `[human]` = Diptanu does this, not Claud
 - [x] `index.html`: push-to-talk, transcript, agent text, audio playback
 - [x] Per-stage latency timing, sent to the client
 - [x] ~~Write~~ **180** synthetic utterances in `scripts.csv` (drafted; review the phrasing)
-- [ ] [human] Calibrate the mic once: `uv run python -m scripts.calibrate`
+- [ ] [human] Calibrate the mic once: `uv run python -m scripts.calibrate` → **Mon Nov 2**, before recording
 - [x] Speaker a recorded: 60 takes, median SNR 64 dB, no problems (D-022)
-- [ ] [human] Record the remaining 120 lines yourself: `uv run python -m scripts.record` (one speaker, D-034)
+- [ ] [human] Record the remaining 120 lines yourself: `uv run python -m scripts.record` (one speaker, D-034) → **by Tue Nov 3** (held-out set, M4)
 - [x] Shop noise: 3 CC0 Indian street recordings from Freesound, 4.8 min (Delhi bazaar, Trivandrum market, flea market); `eval/noise/SOURCES.md` (D-033)
 
 **Done when:** speaking a Hinglish sentence produces a spoken Hinglish reply in the browser.
@@ -259,7 +259,7 @@ first fully real conversation in D-032.
 - [x] Tools, executor, confirmation gate
 - [x] Live ledger panel in the UI (`ledger_update` messages)
 - [x] Seed script with synthetic customers/items (`scripts/seed.py`)
-- [ ] [human] Build-in-public post #1 (LinkedIn/X with contest hashtags)
+- [ ] [human] Build-in-public post #1 (LinkedIn/X with contest hashtags) → **Mon Nov 2 / Tue Nov 3**
 
 **Done when:** "Sharma ji ka dedh sau udhaar likho" → read-back → "haan" → the ledger updates live.
 ✅ Verified Oct 13 against the running server: Rs 400 → "Sharma ji ke khate mein 150
@@ -271,33 +271,74 @@ rupaye udhaar likh doon?" → "haan" → Rs 550, with `ledger_update` pushed to 
 - [x] Eval runner with cache, `--dry-run`, `--max-calls` (D-037; Prisma REST is 1 request at a time)
 - [x] STT-level metrics across the condition grid — 60 takes x 12 conditions, D-038
 - [x] Task-level eval: transcripts through Evon, scored by the executor's own parsing — 70% clean, 25% harsh (D-039)
-- [ ] Phone-line mode toggle in the UI (SNR + loss sliders) using the same `degrade.py`
+- [ ] Phone-line mode toggle in the UI (SNR + loss sliders) using the same `degrade.py` → moved to M4, **Mon Nov 2**
 - [x] Baseline charts committed to `eval/results/` (baseline_2026-10-23_*.png)
 
 **Done when:** baseline numbers exist for every condition, with the API call count known.
 
-### M4 — Fix what eval exposed (Wed Oct 28 – Sun Nov 1) → FEATURE FREEZE
-- [ ] Rank failure modes from the baseline (record in DECISIONS.md)
-- [ ] Fixes, likely: re-ask on low confidence, digit-by-digit amount confirmation,
-      numbers parser gaps, name matching thresholds
-- [ ] Latency: streaming STT and TTS where supported; target < 1.5 s end of speech → first audio
-- [ ] Re-run eval → before/after charts
+### Re-plan (Nov 2, D-040)
+Nothing landed Oct 24 – Nov 1, so M4 never ran. Submission is Nov 10, so the
+backlog moves into the old Nov 7–10 buffer. Freeze: end of Thu Nov 5. Submit:
+Mon Nov 9. Nov 10 is kept empty for emergencies.
 
-**Done when:** a before/after task-accuracy chart shows improvement on the degraded conditions.
+### M4 — Phone mode, fixes, held-out eval (Mon Nov 2 – Thu Nov 5) → FEATURE FREEZE end of Nov 5
+Method: the 60 recorded takes are the **dev set** (we have read their failures);
+the 120 still to record are the **held-out set**, scored once with fixes off and
+once with fixes on. Every fix sits behind one switch, so "before" and "after"
+come from the same commit and the same cached transcripts.
 
-### M5 — Package and ship (Mon Nov 2 – Fri Nov 6)
-- [ ] README: what it is, architecture diagram, which Gnani model is used where,
-      setup in < 5 minutes, eval method + results, synthetic-data note,
-      known limitations, **Path to production** (concurrent calls, telephony
-      integration, per-shop tenancy on Postgres, latency budgets)
-- [ ] Clean demo script + seeded demo database
-- [ ] [human] Record the 60-second demo video (noisy-line credit entry → confirm → ledger updates → eval chart)
-- [ ] [human] Main LinkedIn/X post by **Nov 3–4**; nominate it along with post #1
-- [ ] [human] Submit by **Fri Nov 6**: demo, written explanation, models used, post links
+**Mon Nov 2**
+- [ ] Phone-line mode: UI switch + SNR/loss sliders; live audio through `degrade.py` before STT;
+      digit-by-digit amount read-back on in phone mode (M3 backlog; the read-back already exists)
+- [ ] Fix switch in the agent, and `run_eval --fixes off|on`
+- [ ] Fix 1, payment guard: "ne" + a giving verb (de/diye/die/diya/jama) → `record_payment` (D-039 #1)
+- [ ] Fix 2, number spellings: "nao", "ikkes", "unteen", filler "mile" (D-031, D-038)
+- [ ] [human] Post #1, with the baseline chart as the hook
+- [ ] [human] Calibrate the mic, then start recording the 120 lines
 
-Nov 7–10 is buffer only. No new features.
+**Tue Nov 3**
+- [ ] Fix 3, quantities with units ("paanch kilo") (D-031 #2)
+- [ ] Fix 4, don't act on fragments: a money intent with no amount or no name → ask again (D-039 #3)
+- [ ] Rank failure modes in DECISIONS.md: dev set, fixes off vs on
+- [ ] [human] Finish the 120 lines; run `scripts.check_corpus`
+- [ ] [human] Evening: start Evon on Kaggle, update `.env`
 
-**If time slips:** cut M4 fixes first. Never cut the eval baseline or M5 packaging.
+**Wed Nov 4**
+- [ ] STT on the 120 held-out takes x 12 conditions (1,440 calls, ~Rs 41, ~30 min serial)
+- [ ] Task stage on all 180, fixes off and on → before/after charts; dev and held-out reported separately
+- [ ] At most one more fix if held-out shows a new failure mode; re-run (no credits)
+- [ ] **Decision gate:** if the 120 are not recorded by Wed noon, do before/after on the 60 and say so
+
+**Thu Nov 5**
+- [ ] End-to-end latency with real Evon: replay takes through `/ws`, p50/p90 per stage
+- [ ] Latency fixes, half a day maximum: llama.cpp prompt caching, TTS on the first sentence, a shorter prompt
+- [ ] **FEATURE FREEZE** at the end of the day
+
+### M5 — Package and ship (Fri Nov 6 – Mon Nov 9)
+**Fri Nov 6**
+- [ ] README: results + charts, the 12-condition grid, latency with real Evon, setup < 5 min,
+      known limitations, **Path to production** (concurrent calls, telephony integration,
+      per-shop tenancy on Postgres, latency budgets)
+- [ ] Demo script + seeded demo database
+- [ ] Fresh-clone test: clone → `uv sync` → the UI runs with `USE_FAKES=true` in under 5 minutes
+- [ ] Draft the written explanation (which Gnani model does what, eval method, results)
+
+**Sat Nov 7**
+- [ ] [human] Rehearse, then record the 60-second demo with Evon up (noisy-line credit entry →
+      digit read-back → "haan" → ledger updates → before/after chart)
+- [ ] [human] Main LinkedIn/X post, with the video
+- [ ] Interview prep notes from DECISIONS.md
+
+**Sun Nov 8 — Diwali. Nothing scheduled.**
+
+**Mon Nov 9**
+- [ ] [human] Submit: demo, written explanation, models used, post links; nominate post #1 and the main post
+- [ ] Final check: tests green, README links work, results committed
+
+**Tue Nov 10 — deadline.** Emergency fixes only; the submission is already in.
+
+**If time slips,** cut in this order: latency fixes → fix 4 → the held-out set (use the 60).
+Never cut phone-line mode, the before/after chart, the README, or the video.
 
 ---
 

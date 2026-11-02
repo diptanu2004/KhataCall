@@ -991,3 +991,20 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
   3. Refuse to act on fragments: no tool call when the transcript has no
      amount or no name for a money intent (turn noisy "wrong" into "caught").
   4. numbers.py variants: "nao" (nau), and the D-031 list.
+
+## D-040 — Re-plan: use the Nov 7–10 buffer for the backlog; submit Nov 9
+- **Date:** 2026-11-02 · **Status:** Adopted.
+- **Why:** no work landed Oct 24 – Nov 1, so M4 (fixes, before/after) never ran
+  and the M3 phone-line toggle is still missing. The hard deadline is Nov 10,
+  so the original "Nov 7–10 is buffer only" no longer holds.
+- **New dates:** feature freeze end of Thu Nov 5; README and packaging Fri Nov 6;
+  demo video and main post Sat Nov 7; Diwali Nov 8 off; submit Mon Nov 9;
+  Nov 10 kept empty.
+- **A method change that comes with it:** the 60 takes already analysed (D-038,
+  D-039) become the **dev set**; the 120 still to record become a **held-out
+  set**, scored before and after the fixes but never used to design them. That
+  answers the obvious interview question, "did you just tune to your test set?"
+  It needs every fix behind one switch, so both runs come from the same commit.
+- **Cost:** ~Rs 41 of STT for the held-out set; the before/after task runs reuse
+  cached transcripts and spend nothing. About 4,930 credits remain afterwards.
+
