@@ -30,7 +30,14 @@ a number into someone's ledger that nobody verified.
 import re
 from fractions import Fraction
 
-__all__ = ["normalise", "parse_amount_paise", "parse_number", "parse_quantity", "parse_signed_quantity"]
+__all__ = [
+    "heard_values",
+    "normalise",
+    "parse_amount_paise",
+    "parse_number",
+    "parse_quantity",
+    "parse_signed_quantity",
+]
 
 # Guard against a mis-heard word turning into a fortune. A kirana udhaar of over
 # a crore is a transcription error, not a transaction.
@@ -151,6 +158,20 @@ FILLER_FIXES = frozenset(normalise(w) for w in "mile mila".split())
 UNITS_FIXED = {**UNITS, **{k: v for k, v in SPELLING_FIXES.items() if k not in UNITS}}
 IGNORED_FIXED = IGNORED | FILLER_FIXES
 
+# M4 fix 3 (D-043): the unit a stock quantity is counted in. Evon passes it along
+# ("paanch kilo", "do bori", "paanch jar") and the parser refused every one: 7
+# of 30 stock updates on text (D-031). Only quantities accept these; "paanch
+# kilo" is never a rupee amount. "darjan"/"dozen" stay multipliers (x12).
+UNIT_WORDS = frozenset(
+    normalise(w)
+    for w in (
+        "kilo kilos kg kgs kilogram gram grams gm litre litres liter liters ltr "
+        "packet packets pack packs pkt bori bora bag bags jar jars sachet sachets "
+        "bottle bottles botal dabba dibba box boxes peti carton cartons tube tubes "
+        "piece pieces pcs"
+    ).split()
+)
+
 
 def _tokens(text: str) -> list[str]:
     return _TOKEN.findall(text.lower())
@@ -266,7 +287,7 @@ def parse_amount_paise(text: str, *, spelling_fixes: bool = True) -> int | None:
     return paise
 
 
-def parse_signed_quantity(text: str, *, spelling_fixes: bool = True) -> Fraction | None:
+def parse_signed_quantity(text: str, *, spelling_fixes: bool = True, unit_words: bool = True) -> Fraction | None:
     """A stock change: "bees" is +20, "minus das" is -10.
 
     Shared by the executor and the eval, so the eval scores exactly what the
@@ -279,17 +300,37 @@ def parse_signed_quantity(text: str, *, spelling_fixes: bool = True) -> Fraction
         if lowered.startswith(prefix):
             sign, stripped = -1, stripped[len(prefix):].strip()
             break
-    magnitude = parse_quantity(stripped, spelling_fixes=spelling_fixes)
+    magnitude = parse_quantity(stripped, spelling_fixes=spelling_fixes, unit_words=unit_words)
     return None if magnitude is None else sign * magnitude
 
 
-def parse_quantity(text: str, *, spelling_fixes: bool = True) -> Fraction | None:
+def parse_quantity(text: str, *, spelling_fixes: bool = True, unit_words: bool = True) -> Fraction | None:
     """A spoken stock quantity, which may be fractional ("saadhe teen kilo").
 
     Returned as a Fraction rather than an int: whether loose goods are supported
     is the executor's decision, not this module's (risk R6).
     """
+    if unit_words:
+        text = " ".join(t for t in _tokens(text) if normalise(t) not in UNIT_WORDS)
     value = parse_number(text, spelling_fixes=spelling_fixes)
     if value is None or value <= 0 or value > 1_000_000:
         return None
     return value
+
+
+def heard_values(text: str, *, spelling_fixes: bool = True) -> set[Fraction]:
+    """Every number the words of `text` can be read as, from any run of them.
+
+    M4 fix 4 (D-043) checks Evon's amount against this: the value it proposes
+    must be one the owner actually said. Every contiguous run of tokens is
+    tried, so fillers inside a number ("teen sau rupaye pachaas") still read as
+    350; a run containing any word that is not part of a number reads as nothing.
+    """
+    tokens = _tokens(text)
+    values = set()
+    for start in range(len(tokens)):
+        for end in range(start + 1, min(len(tokens), start + 12) + 1):
+            value = parse_number(" ".join(tokens[start:end]), spelling_fixes=spelling_fixes)
+            if value is not None:
+                values.add(value)
+    return values

@@ -174,6 +174,6 @@ def test_ws_phone_mode_turn_over_the_real_endpoint(fake_mode):
 
 def test_eval_summary_is_served_without_transcripts():
     body = TestClient(app).get("/eval/summary").json()
-    assert set(body) == {"file", "conditions"}
+    assert set(body) == {"file", "split", "conditions"}
     for summary in body["conditions"].values():
         assert "rows" not in summary

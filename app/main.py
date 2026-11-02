@@ -51,11 +51,16 @@ RESULTS_DIR = Path(__file__).resolve().parents[1] / "eval" / "results"
 def eval_summary() -> dict:
     """The newest baseline's per-condition summary, so the phone-line panel can show
     what the eval measured at the chosen setting. Summary only, no transcripts."""
-    found = sorted(RESULTS_DIR.glob("baseline_*.json"))
+    found = sorted(RESULTS_DIR.glob("m4_*.json")) or sorted(RESULTS_DIR.glob("baseline_*.json"))
     if not found:
-        return {"file": None, "conditions": {}}
+        return {"file": None, "split": None, "conditions": {}}
     data = json.loads(found[-1].read_text(encoding="utf-8"))
-    return {"file": found[-1].name, "conditions": data.get("summary", {})}
+    heldout = (data.get("splits") or {}).get("heldout")
+    return {
+        "file": found[-1].name,
+        "split": "heldout" if heldout else "all",
+        "conditions": heldout or data.get("summary", {}),
+    }
 
 
 def _mode(settings) -> str:

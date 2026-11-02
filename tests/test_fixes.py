@@ -105,3 +105,77 @@ def test_the_executor_with_fixes_off_behaves_as_before(executor):
     call = ToolCall("add_credit", {"customer_name": "Verma bhaiya", "amount_spoken": "sadhe teen sau"})
     reply = executor.handle(call, utterance="verma bhaiya ne sadhe teen sau die")
     assert "udhaar likh doon" in reply.speech
+
+
+# --- fix 3: quantities carry a unit --------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "spoken,qty",
+    [("paanch kilo", 5), ("do bori", 2), ("paanch jar", 5), ("minus chhe kilo", -6), ("bees packet", 20)],
+)
+def test_measured_unit_quantities_parse_with_the_fix_and_not_without(spoken, qty):
+    from app.nlu.numbers import parse_signed_quantity
+
+    assert parse_signed_quantity(spoken) == qty
+    assert parse_signed_quantity(spoken, unit_words=False) is None
+
+
+def test_units_are_for_quantities_only_never_money():
+    assert parse_amount_paise("paanch kilo") is None
+
+
+def test_dozen_is_still_a_multiplier_not_a_unit():
+    from app.nlu.numbers import parse_signed_quantity
+
+    assert parse_signed_quantity("do darjan") == 24
+
+
+# --- fix 4: the number must be one the owner said ---------------------------------
+
+
+@pytest.mark.parametrize(
+    "value,utterance",
+    [
+        (150, "sharma ji ka dedh sau udhar likho"),
+        (350, "teen sau rupaye pachaas"),  # a filler inside the number
+        (150, "sharma ji ka 150 udhar likho"),  # Prisma wrote digits
+        (5, "chini k paanch kilo aaye"),
+        (21, "nigam ji ne ikkes rupaye wapas kiye"),  # fix 2's spelling counts as heard
+    ],
+)
+def test_numbers_the_owner_said_are_heard(value, utterance):
+    from fractions import Fraction
+
+    from app.agent.fixes import was_heard
+
+    assert was_heard(Fraction(value), utterance)
+
+
+@pytest.mark.parametrize(
+    "value,utterance",
+    [
+        (150, "sharma jitah"),  # D-039: a fragment; Evon filled in the prompt's own example
+        (1, "shampoo ke saath sachet aaye"),  # D-031: "saath" (60) passed as "one"
+        (20, "namak ke beech packet aa gaye"),  # a plausible repair, still not what was heard
+    ],
+)
+def test_numbers_the_owner_did_not_say_are_not(value, utterance):
+    from fractions import Fraction
+
+    from app.agent.fixes import was_heard
+
+    assert not was_heard(Fraction(value), utterance)
+
+
+def test_the_executor_asks_again_rather_than_take_an_unheard_amount(executor):
+    call = ToolCall("add_credit", {"customer_name": "Verma bhaiya", "amount_spoken": "dedh sau"})
+    reply = executor.handle(call, utterance="verma bhaiya")
+    assert reply.outcome is not Outcome.CONFIRMING
+    assert "Kitne rupaye" in reply.speech
+
+
+def test_without_an_utterance_the_heard_check_does_not_apply(executor):
+    """Callers that have no transcript (tests, tools) keep the old behaviour."""
+    call = ToolCall("add_credit", {"customer_name": "Verma bhaiya", "amount_spoken": "dedh sau"})
+    assert executor.handle(call).outcome is Outcome.CONFIRMING

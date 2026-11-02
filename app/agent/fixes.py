@@ -7,27 +7,32 @@ the switch is an object passed explicitly rather than a global.
 
     fix 1  payment guard     "Verma ji ne teen sau diye" proposed as credit -> payment
     fix 2  number spellings  "ikkes", "unteen", "nao"; "mile" as filler
+    fix 3  unit quantities   "paanch kilo", "do bori" parse as 5 and 2
+    fix 4  heard check       the number Evon passes must be one the owner said
 
 The product runs with everything on (`ALL`); the eval's "before" uses `NONE`.
 """
 
 import re
 from dataclasses import dataclass, replace
+from fractions import Fraction
 from typing import Any, Literal
 
-from app.nlu.numbers import normalise
+from app.nlu.numbers import heard_values, normalise
 
-__all__ = ["ALL", "NONE", "Fixes", "apply_to_proposal", "money_direction"]
+__all__ = ["ALL", "NONE", "Fixes", "apply_to_proposal", "money_direction", "was_heard"]
 
 
 @dataclass(frozen=True)
 class Fixes:
     payment_guard: bool = True
     number_spellings: bool = True
+    unit_quantities: bool = True
+    heard_check: bool = True
 
 
 ALL = Fixes()
-NONE = replace(ALL, payment_guard=False, number_spellings=False)
+NONE = replace(ALL, payment_guard=False, number_spellings=False, unit_quantities=False, heard_check=False)
 
 
 # --- fix 1: the payment guard ------------------------------------------------
@@ -62,6 +67,20 @@ def money_direction(utterance: str) -> Literal["payment", "credit"] | None:
     if credit and not payment:
         return "credit"
     return None
+
+
+# --- fix 4: the heard check ----------------------------------------------------
+#
+# Hard rule 7 says amounts are parsed by code from the words *as spoken*. This
+# makes the executor hold Evon to it: the value in amount_spoken (or the stock
+# quantity) must be readable from the transcript itself. It catches a fragment
+# with no number in it (heavy noise, D-039), and Evon inventing one ("saath
+# sachet" passed as "one sachet", D-031). Names are deliberately not checked:
+# in a conversation Evon may rightly take the name from an earlier turn.
+
+
+def was_heard(value: Fraction, utterance: str, *, spelling_fixes: bool = True) -> bool:
+    return abs(value) in heard_values(utterance, spelling_fixes=spelling_fixes)
 
 
 def apply_to_proposal(

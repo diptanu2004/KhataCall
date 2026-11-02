@@ -39,7 +39,7 @@ from app.adapters.base import ToolCall
 from app.agent.tools import WRITE_TOOLS, args_model_for
 from app.ledger.repo import Ledger, LedgerError
 from app.nlu.names import Decision, match_name
-from app.agent.fixes import ALL, Fixes, apply_to_proposal
+from app.agent.fixes import ALL, Fixes, apply_to_proposal, was_heard
 from app.nlu.numbers import parse_amount_paise, parse_number, parse_signed_quantity
 
 log = logging.getLogger(__name__)
@@ -126,6 +126,7 @@ class Executor:
         self._session_id = session_id
         # The M4 fixes (app/agent/fixes.py). On in the product; the eval turns them off for "before".
         self.fixes = fixes
+        self._utterance: str | None = None  # what the owner said this turn, for the heard check
         # Phone mode has no STT confidence to key off (D-004), so it spells amounts out.
         self.spell_amounts = spell_amounts
         self._pending: _Pending | None = None
@@ -149,6 +150,7 @@ class Executor:
         `utterance` is what the owner said (the transcript); the payment guard reads
         its grammar to correct a credit/payment mix-up before anything is read back.
         """
+        self._utterance = utterance
         if utterance is not None:
             name, arguments, changed = apply_to_proposal(self.fixes, utterance, call.name, call.arguments)
             if changed:
@@ -180,12 +182,18 @@ class Executor:
                 return self._low_stock(args)
         return self._say("Maaf kijiye, woh main nahi kar sakta.")
 
+    def _heard(self, value: Fraction) -> bool:
+        """Fix 4: was this number actually in what the owner said? True when unchecked."""
+        if not self.fixes.heard_check or self._utterance is None:
+            return True
+        return was_heard(value, self._utterance, spelling_fixes=self.fixes.number_spellings)
+
     # --- money ---
 
     def _propose_entry(self, call: ToolCall, args) -> Reply:
         paise = parse_amount_paise(args.amount_spoken, spelling_fixes=self.fixes.number_spellings)
-        if paise is None:
-            # Never guess an amount. The agent asks and the owner repeats it.
+        if paise is None or not self._heard(Fraction(paise, 100)):
+            # Never guess an amount, and never take one the owner did not say.
             return self._say("Amount samajh nahi aaya. Kitne rupaye?")
 
         resolved = self._resolve_customer(args.customer_name)
@@ -225,8 +233,12 @@ class Executor:
     # --- stock ---
 
     def _propose_stock(self, call: ToolCall, args) -> Reply:
-        signed = parse_signed_quantity(args.qty_delta_spoken, spelling_fixes=self.fixes.number_spellings)
-        if signed is None:
+        signed = parse_signed_quantity(
+            args.qty_delta_spoken,
+            spelling_fixes=self.fixes.number_spellings,
+            unit_words=self.fixes.unit_quantities,
+        )
+        if signed is None or not self._heard(signed):
             return self._say("Kitne? Number samajh nahi aaya.")
         if signed.denominator != 1:
             # Loose goods: refused rather than rounded (D-024).

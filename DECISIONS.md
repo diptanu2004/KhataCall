@@ -1088,3 +1088,68 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
      was already seen (the D-031 text run covered all 180). It tests whether
      the fixes survive new transcription errors, not new phrasings.
 
+## D-043 — Fixes 3 and 4, and what still goes wrong after all four
+- **Date:** 2026-11-03 · **Status:** Built and measured on the dev set; held-out
+  run in progress.
+- **Fix 3, units on quantities.** `parse_quantity` drops unit words ("kilo",
+  "bori", "jar", "packet", "sachet", ...) before parsing, behind
+  `unit_words=`. Quantities only: "paanch kilo" is still not a rupee amount, and
+  "darjan" stays a multiplier (x12). On the dev set it turned 13 re-asks into
+  correct answers, and 10 into *wrong* ones - all ten one take (136) across ten
+  conditions, which is not a fault of the fix: see the first finding below.
+- **Fix 4, generalised into a heard check.** The plan said "ask again when a
+  money request has no amount". The general form covers that and more: the
+  number Evon passes must be readable from the transcript itself
+  (`heard_values`: every contiguous run of tokens through `parse_number`, so
+  "teen sau rupaye pachaas" still reads as 350). It enforces hard rule 7 on
+  Evon's side: quote the amount, never supply one.
+  - **Names are deliberately not checked.** In a conversation Evon may rightly
+    take the name from an earlier turn ("unka 200 aur likho").
+  - **Measured cost and benefit on the dev set** (three distinct utterances):
+    "sharma jitah" (no amount heard) proposed as "Sharma ji, dedh sau": scored
+    *correct* before, now caught - and that is right, it was a guess (finding
+    2); "haan took bottle toh" proposed as "minus one": wrong → caught; "namak
+    ke beech packet" repaired by Evon to "bees" (20): correct → caught. The
+    last is a real cost: a sensible repair is refused, and the owner is asked
+    again. Accepted, because the alternative is trusting Evon to invent numbers.
+- **Dev set, all four fixes (`eval/results/m4dev_2026-11-03*`), correct / wrong:**
+
+| condition | before | after |
+|---|---|---|
+| clean | 70.0% / 11.7% | **80.0% / 8.3%** |
+| landline, mob, mob_loss1 | 73.3% / 10.0% | 83.3% / 6.7% |
+| mob_snr10 | 71.7% / 10.0% | 80.0% / 6.7% |
+| mob_snr5 | 55.0% / 20.0% | 60.0% / 18.3% |
+| mob_snr0 | 28.3% / 46.7% | 33.3% / 41.7% |
+| mob_worst | 45.0% / 25.0% | 50.0% / 21.7% |
+| mob_harsh | 25.0% / 58.3% | 23.3% / 58.3% |
+
+  WER and amount survival are unchanged from D-038, as they must be (the WER
+  normaliser is pinned to the pre-fix parser).
+- **Findings along the way:**
+  1. **Prisma systematically hears pachchees (25) as pachas (50)**: ₹625 → ₹650
+     (take 037) and 25 kilo → 50 kilo (take 136), in every condition including
+     clean. With saath (60) → saat (7) (take 073), the remaining clean-audio
+     amount errors are all near-homophone numbers. No parser can fix these
+     without guessing; the digit-by-digit read-back in phone mode ("paanch
+     shunya") is what makes them audible to the owner.
+  2. **On a fragment, Evon fills in the system prompt's own examples.** For
+     "sharma jitah" it proposed `add_credit("Sharma ji", "dedh sau")` - exactly
+     the prompt's illustration of customer_name and amount_spoken. Worth a line
+     in the README: examples in a prompt are also defaults the model falls back on.
+- **Failure modes left after all four fixes, ranked (dev set):**
+  - *Quiet conditions (8 conditions, 480 rows): 35 wrong.* Amount 16 and
+    quantity 14 - near-homophone numbers from Prisma (finding 1) and one stock
+    delivery ("paanch jhaad aaye") proposed as a sale; intent 5 - cue words
+    misheard ("die" → "din", "udhaar" → "sudhar", "aaye" → "hai"); item 2.
+    Re-asks (55) are mostly names matched ambiguously (20) and misheard items
+    flagged as new (17): safe, if tedious.
+  - *Noisy conditions (SNR 5 and below, 240 rows): 84 wrong.* Intent 59,
+    customer 21, amount 15, item 14. With half the words gone Evon still
+    commits to a tool and a name. Nothing in code can recover destroyed words;
+    the read-back is the last line, which is why phone mode reads amounts
+    digit by digit.
+- **Candidate fix 5, if held-out confirms it:** a stock-direction guard, the
+  twin of fix 1 ("aaye/aa gaye/aayi" → positive, "bik gaye/nikal gaye" →
+  negative). One dev take (154) motivates it - not enough on its own.
+

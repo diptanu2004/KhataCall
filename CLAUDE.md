@@ -91,6 +91,7 @@ uv run python -m scripts.wsclient --wav a.wav --wav b.wav  # replay a multi-turn
 uv run python -m scripts.usage                  # what we have spent, against the 5000 grant
 uv run python -m scripts.calibrate              # pick the mic, check the room is quiet enough
 uv run python -m scripts.record                 # record the eval corpus (no API calls)
+uv run python -m scripts.record --limit 40      # a partial session, spread across intents
 uv run python -m scripts.check_corpus           # verify the recordings before trusting them
 uv run python -m scripts.get_noise              # import noise from eval/noise/incoming/ (docs/NOISE.md)
 uv run python -m scripts.seed                   # fill the ledger with a synthetic shop
@@ -248,7 +249,7 @@ Mark tasks `[x]` as they are completed. `[human]` = Diptanu does this, not Claud
 - [x] ~~Write~~ **180** synthetic utterances in `scripts.csv` (drafted; review the phrasing)
 - [ ] [human] Calibrate the mic once: `uv run python -m scripts.calibrate` → **Mon Nov 2**, before recording
 - [x] Speaker a recorded: 60 takes, median SNR 64 dB, no problems (D-022)
-- [ ] [human] Record the remaining 120 lines yourself: `uv run python -m scripts.record` (one speaker, D-034) → **by Tue Nov 3** (held-out set, M4)
+- [x] [human] Record the remaining 120 lines yourself (one speaker, D-034) — 180/180 on Nov 3
 - [x] Shop noise: 3 CC0 Indian street recordings from Freesound, 4.8 min (Delhi bazaar, Trivandrum market, flea market); `eval/noise/SOURCES.md` (D-033)
 
 **Done when:** speaking a Hinglish sentence produces a spoken Hinglish reply in the browser.
@@ -305,10 +306,12 @@ come from the same commit and the same cached transcripts.
 - [ ] [human] Calibrate the mic, then start recording the 120 lines
 
 **Tue Nov 3**
-- [ ] Fix 3, quantities with units ("paanch kilo") (D-031 #2)
-- [ ] Fix 4, don't act on fragments: a money intent with no amount or no name → ask again (D-039 #3)
-- [ ] Rank failure modes in DECISIONS.md: dev set, fixes off vs on
-- [ ] [human] Finish the 120 lines; run `scripts.check_corpus`
+- [x] Fix 3, quantities with units ("paanch kilo") (D-031 #2) — D-043
+- [x] Fix 4, generalised to a **heard check**: the number Evon passes must be in the transcript
+      (catches fragments and invented numbers; names deliberately not checked) — D-043
+- [x] Rank failure modes in DECISIONS.md: dev set, fixes off vs on — D-043
+- [x] [human] Finish the 120 lines; run `scripts.check_corpus` — 180/180, no problems (done Nov 3)
+- [x] STT on the 120 held-out takes started Nov 3 (1,440 calls, Rs 35.51 by dry run)
 - [ ] [human] Evening: start Evon on Kaggle, update `.env`
 
 **Wed Nov 4**

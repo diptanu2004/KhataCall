@@ -48,6 +48,8 @@ ROOT = Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "eval" / "corpus" / "scripts.csv"
 AUDIO_DIR = ROOT / "eval" / "corpus" / "audio"
 CACHE_DIR = ROOT / "eval" / "cache"
+# The 60 takes the M4 fixes were designed from (D-042). Everything else is held out.
+DEV_IDS_FILE = ROOT / "eval" / "corpus" / "dev_ids.txt"
 RESULTS_DIR = ROOT / "eval" / "results"
 
 STT_MODEL_ID = "prisma-v2.5"  # PrismaSTT.model_id; duplicated so --dry-run needs no API key
@@ -73,6 +75,42 @@ def load_takes(audio_dir: Path = AUDIO_DIR) -> list[dict]:
                 raise ValueError(f"{path.name} is not 16 kHz mono; check it with scripts.check_corpus")
             takes.append({**row, "audio": audio})
     return takes
+
+
+def split_of(utterance_id: str, dev_ids: set[str]) -> str:
+    return "dev" if utterance_id in dev_ids else "heldout"
+
+
+def load_dev_ids() -> set[str]:
+    return set(DEV_IDS_FILE.read_text(encoding="utf-8").split()) if DEV_IDS_FILE.exists() else set()
+
+
+def summarise_by_condition(rows: list[dict], conditions) -> dict:
+    by_condition: dict[str, list[dict]] = defaultdict(list)
+    for r in rows:
+        by_condition[r["condition"]].append(r)
+    return {c.id: summarise(by_condition[c.id]) for c in conditions if by_condition[c.id]}
+
+
+def print_table(title: str, summary: dict) -> None:
+    print(f"\n{title}")
+    print(
+        f"{'condition':12} {'n':>3}  {'WER raw':>7} {'WER norm':>8} {'CER norm':>8} {'empty':>5}  "
+        f"{'amount ok':>9} {'changed':>7} {'lost':>4}  {'before':>13} {'after fixes':>13}"
+    )
+    for cid, s in summary.items():
+        task, before = s.get("task"), s.get("task_before")
+
+        def cell(t):
+            return f"{t['accuracy']:6.1%}/{t['wrong_rate']:5.1%}" if t else f"{'-':>12}"
+
+        print(
+            f"{cid:12} {s['n']:3d}  {s['raw']['wer']:7.1%} {s['normalised']['wer']:8.1%} {s['normalised']['cer']:8.1%} "
+            f"{s['empty_transcripts']:5d}  "
+            + (f"{s['amount']['kept_rate']:9.0%} {s['amount']['changed']:7d} {s['amount']['lost']:4d}  " if "amount" in s else " " * 24)
+            + f"{cell(before):>13} {cell(task):>13}"
+        )
+    print("  (task cells: correct/wrong)")
 
 
 def known_customers() -> list[str]:
@@ -404,20 +442,19 @@ async def run(args) -> int:
     if args.dry_run or not rows:
         return 0
 
-    by_condition: dict[str, list[dict]] = defaultdict(list)
+    dev_ids = load_dev_ids()
     for r in rows:
-        by_condition[r["condition"]].append(r)
-    summary = {c.id: summarise(by_condition[c.id]) for c in conditions if by_condition[c.id]}
-
-    print(f"\n{'condition':12} {'n':>3}  {'WER raw':>7} {'WER norm':>8} {'CER norm':>8} {'empty':>5}  {'task':>6} {'wrong':>6}")
-    for cid, s in summary.items():
-        task = s.get("task")
-        print(
-            f"{cid:12} {s['n']:3d}  {s['raw']['wer']:7.1%} {s['normalised']['wer']:8.1%} {s['normalised']['cer']:8.1%} "
-            f"{s['empty_transcripts']:5d}  "
-            + (f"{s['amount']['kept_rate']:9.0%} {s['amount']['changed']:7d} {s['amount']['lost']:4d}  " if "amount" in s else " " * 24)
-            + (f"{task['accuracy']:6.1%} {task['wrong_rate']:6.1%}" if task else f"{'-':>6} {'-':>6}")
-        )
+        r["split"] = split_of(r["id"], dev_ids)
+    summary = summarise_by_condition(rows, conditions)
+    # Held out is the honest number: the fixes were designed by reading the dev set's failures.
+    splits = {
+        name: summarise_by_condition([r for r in rows if r["split"] == name], conditions)
+        for name in ("heldout", "dev")
+        if any(r["split"] == name for r in rows)
+    }
+    for name, title in (("heldout", "HELD OUT (never used to design a fix)"), ("dev", "DEV (the fixes were designed from these)")):
+        if name in splits:
+            print_table(f"{title}: {len({r['id'] for r in rows if r['split'] == name})} takes", splits[name])
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     out = RESULTS_DIR / f"{args.label}_{date.today().isoformat()}.json"
@@ -428,6 +465,7 @@ async def run(args) -> int:
         "prompt_sha": prompt_sha,
         "conditions": {c.id: c.__dict__ for c in conditions},
         "summary": summary,
+        "splits": splits,
         "rows": rows,
     })
     print(f"\nwrote {out.relative_to(ROOT)}")

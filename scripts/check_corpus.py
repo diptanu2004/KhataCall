@@ -244,7 +244,10 @@ def main() -> int:
         )
     # Billing follows audio-seconds (D-020), so the corpus duration sets the eval cost.
     per_condition = total / 3600 * 27.0
-    print(f"  eval cost  Rs {per_condition:.2f} per condition, Rs {per_condition * 10:.2f} for a 10-condition baseline")
+    from eval.conditions import CONDITIONS
+
+    n = len(CONDITIONS)
+    print(f"  eval cost  Rs {per_condition:.2f} per condition, Rs {per_condition * n:.2f} for the {n}-condition grid")
 
     if missing:
         print(f"\n  {len(missing)} not yet recorded: {', '.join(r['id'] for r in missing[:12])}" + (" ..." if len(missing) > 12 else ""))

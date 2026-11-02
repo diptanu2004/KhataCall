@@ -23,12 +23,13 @@ would drift from the product and measure something else.
 """
 
 from dataclasses import dataclass, field
+from fractions import Fraction
 from enum import StrEnum
 from typing import Any
 
 from pydantic import ValidationError
 
-from app.agent.fixes import ALL, Fixes, apply_to_proposal
+from app.agent.fixes import ALL, Fixes, apply_to_proposal, was_heard
 from app.agent.tools import args_model_for
 from app.nlu.names import Decision, match_name
 from app.nlu.numbers import normalise, parse_amount_paise, parse_number, parse_signed_quantity
@@ -145,9 +146,13 @@ def score_call(
         paise = parse_amount_paise(spoken, spelling_fixes=spelling) if spoken else None
         details["amount_paise"] = paise
         converted = _has_digits(spoken) and not _has_digits(row["text"])
+        heard_check = fixes.heard_check and utterance is not None
         if paise is None:
             amount_ok = False
             caught.append("amount unparseable")
+        elif heard_check and not was_heard(Fraction(paise, 100), utterance, spelling_fixes=spelling):
+            amount_ok = False
+            caught.append(f"amount not heard: {spoken}")  # the executor asks again
         else:
             amount_ok = paise == int(row["amount_paise"])
             if not amount_ok:
@@ -167,11 +172,18 @@ def score_call(
 
     if expected == "update_stock" and row.get("qty"):
         spoken = str(args.get("qty_delta_spoken") or "")
-        qty = parse_signed_quantity(spoken, spelling_fixes=spelling) if spoken else None
+        qty = (
+            parse_signed_quantity(spoken, spelling_fixes=spelling, unit_words=fixes.unit_quantities)
+            if spoken
+            else None
+        )
         details["qty"] = str(qty) if qty is not None else None
         if qty is None:
             qty_ok = False
             caught.append("quantity unparseable")
+        elif fixes.heard_check and utterance is not None and not was_heard(qty, utterance, spelling_fixes=spelling):
+            qty_ok = False
+            caught.append(f"quantity not heard: {spoken}")
         else:
             qty_ok = float(qty) == float(row["qty"])
             if not qty_ok:
