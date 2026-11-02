@@ -3,6 +3,8 @@
     uv run python -m scripts.record                 # every line not yet recorded
     uv run python -m scripts.record --speaker a     # only this speaker's share
     uv run python -m scripts.record --ids 004,017   # specific lines, e.g. to redo
+    uv run python -m scripts.record --limit 40      # at most 40 this session, every intent represented
+    uv run python -m scripts.record --limit 40 --dry-run   # show which 40, record nothing
     uv run python -m scripts.record --noise         # ambient noise for eval/noise/
     uv run python -m scripts.record --list-devices
 
@@ -26,6 +28,7 @@ import argparse
 import csv
 import sys
 import wave
+from collections import Counter, defaultdict
 from pathlib import Path
 
 import numpy as np
@@ -104,6 +107,34 @@ def take_until_happy(label: str, text: str, out: Path, device: int | None = None
         return True
 
 
+def spread_across_intents(rows: list[dict]) -> list[dict]:
+    """Order lines so that any prefix has roughly the corpus's mix of intents.
+
+    The file is grouped by intent, so a session stopped after 40 lines would
+    otherwise record nothing but credit entries, and a partial held-out set
+    would have no payments or stock lines at all. Each row is placed by its
+    relative position within its own intent; file order breaks ties.
+    """
+    by_intent: dict[str, list[int]] = defaultdict(list)
+    for i, row in enumerate(rows):
+        by_intent[row["intent"]].append(i)
+    position = {}
+    for indices in by_intent.values():
+        for rank, i in enumerate(indices):
+            position[i] = (rank + 0.5) / len(indices)
+    return [rows[i] for i in sorted(range(len(rows)), key=lambda i: (position[i], i))]
+
+
+def device_still_matches(index: int, saved_name: str) -> bool:
+    """Windows renumbers audio devices; the saved index must still be the same mic."""
+    try:
+        import sounddevice as sd
+
+        return sd.query_devices(index)["name"] == saved_name
+    except Exception:
+        return False
+
+
 def calibrated_device() -> int | None:
     config = load_config()
     if not config:
@@ -113,6 +144,12 @@ def calibrated_device() -> int | None:
             raise SystemExit(0)
         return None
     name = config.get("device_name") or "system default"
+    if config.get("device") is not None and config.get("device_name"):
+        if not device_still_matches(config["device"], config["device_name"]):
+            raise SystemExit(
+                f"Device {config['device']} is no longer {config['device_name']!r} (Windows renumbered "
+                "the devices). Run: uv run python -m scripts.calibrate"
+            )
     print(f"Using {name}  (noise floor {config.get('noise_floor_dbfs')} dBFS, SNR {config.get('snr_db')} dB)")
     if not config.get("usable", True):
         print("  That calibration did not pass. Recording now risks a corpus the eval cannot use.")
@@ -137,11 +174,21 @@ def record_corpus(args) -> int:
         if wanted is None and not args.redo and (AUDIO_DIR / f"{row['id']}.wav").exists():
             continue
         todo.append(row)
+    if wanted is None:
+        todo = spread_across_intents(todo)
+    if args.limit:
+        todo = todo[: args.limit]
 
     done = sum(1 for row in rows if (AUDIO_DIR / f"{row['id']}.wav").exists())
     print(f"{done}/{len(rows)} lines already recorded. {len(todo)} to do in this session.")
     if not todo:
         print("Nothing to record.")
+        return 0
+    mix = Counter(row["intent"] for row in todo)
+    print("  this session: " + ", ".join(f"{intent} {n}" for intent, n in mix.most_common()))
+    if args.dry_run:
+        for row in todo:
+            print(f"  {row['id']}  {row['intent']:15} {row['text']}")
         return 0
     print("Read each line naturally, as you would say it in a shop. Quiet room, no background music.")
     device = calibrated_device()
@@ -185,6 +232,8 @@ def main() -> int:
     parser.add_argument("--speaker", help="record only this speaker's share (a, b, c)")
     parser.add_argument("--ids", help="comma-separated ids to record, e.g. 004,017")
     parser.add_argument("--redo", action="store_true", help="include lines already recorded")
+    parser.add_argument("--limit", type=int, help="record at most N lines this session, spread across intents")
+    parser.add_argument("--dry-run", action="store_true", help="list the lines this session would record")
     parser.add_argument("--noise", action="store_true", help="record ambient noise instead")
     parser.add_argument("--list-devices", action="store_true")
     args = parser.parse_args()
