@@ -307,11 +307,11 @@ class Session:
             return
         llm_ms = (time.perf_counter() - llm_start) * 1000
 
-        answer = await self._act_on(reply)
+        answer = await self._act_on(reply, text)
         self._remember("assistant", answer)
         await self._speak(answer, speech_end=speech_end, stt_ms=stt_ms, llm_ms=llm_ms)
 
-    async def _act_on(self, reply: LLMReply) -> str:
+    async def _act_on(self, reply: LLMReply, utterance: str) -> str:
         """Run whatever Evon proposed through the executor, and say the result.
 
         Evon only ever *proposes* (hard rule 5). Nothing reaches the ledger
@@ -331,7 +331,7 @@ class Session:
             # Evon proposed something new while a write was waiting; the owner moved on.
             self._executor.cancel()
 
-        result = self._executor.handle(call)
+        result = self._executor.handle(call, utterance=utterance)
         if result.ledger_changed:
             await self._send_ledger()
         if result.outcome is Outcome.CONFIRMING:

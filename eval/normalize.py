@@ -47,9 +47,9 @@ def raw_text(text: str) -> str:
 def _is_number_word(token: str) -> bool:
     # Fraction words ("sadhe", "paune", "sava") are not numbers alone, only in front of one.
     # parse_number skips fillers, so "ka sau" is 100 too: the word must change the value.
-    if token.isdigit() or parse_number(token) is not None:
+    if token.isdigit() or parse_number(token, spelling_fixes=False) is not None:
         return True
-    value = parse_number(f"{token} sau")
+    value = parse_number(f"{token} sau", spelling_fixes=False)
     return value is not None and value != 100
 
 
@@ -71,7 +71,9 @@ def normalise_text(text: str) -> str:
             for end in range(j, i, -1):
                 if end == i + 1 and tokens[i] in _AMBIGUOUS_ALONE:
                     continue
-                value = parse_number(" ".join(tokens[i:end]))
+                # Pinned to the pre-M4 parser: WER measures Prisma, and must not
+                # move when the agent's spelling fixes change (D-042).
+                value = parse_number(" ".join(tokens[i:end]), spelling_fixes=False)
                 if value is not None:
                     out.append(_digits(value))
                     i = end

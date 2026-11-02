@@ -39,6 +39,7 @@ from app.adapters.base import ToolCall
 from app.agent.tools import WRITE_TOOLS, args_model_for
 from app.ledger.repo import Ledger, LedgerError
 from app.nlu.names import Decision, match_name
+from app.agent.fixes import ALL, Fixes, apply_to_proposal
 from app.nlu.numbers import parse_amount_paise, parse_number, parse_signed_quantity
 
 log = logging.getLogger(__name__)
@@ -113,9 +114,18 @@ def spell_digits(paise: int) -> str:
 
 
 class Executor:
-    def __init__(self, ledger: Ledger, *, session_id: str | None = None, spell_amounts: bool = False) -> None:
+    def __init__(
+        self,
+        ledger: Ledger,
+        *,
+        session_id: str | None = None,
+        spell_amounts: bool = False,
+        fixes: Fixes = ALL,
+    ) -> None:
         self._ledger = ledger
         self._session_id = session_id
+        # The M4 fixes (app/agent/fixes.py). On in the product; the eval turns them off for "before".
+        self.fixes = fixes
         # Phone mode has no STT confidence to key off (D-004), so it spells amounts out.
         self.spell_amounts = spell_amounts
         self._pending: _Pending | None = None
@@ -133,8 +143,17 @@ class Executor:
 
     # --- a proposal from Evon ---
 
-    def handle(self, call: ToolCall) -> Reply:
-        """Validate and act on a tool call. Writes become pending, reads answer now."""
+    def handle(self, call: ToolCall, *, utterance: str | None = None) -> Reply:
+        """Validate and act on a tool call. Writes become pending, reads answer now.
+
+        `utterance` is what the owner said (the transcript); the payment guard reads
+        its grammar to correct a credit/payment mix-up before anything is read back.
+        """
+        if utterance is not None:
+            name, arguments, changed = apply_to_proposal(self.fixes, utterance, call.name, call.arguments)
+            if changed:
+                log.info("%s (%r)", changed, utterance)
+                call = ToolCall(name, arguments or {}, call.id)
         model = args_model_for(call.name)
         if model is None:
             log.warning("unknown tool %r", call.name)
@@ -164,7 +183,7 @@ class Executor:
     # --- money ---
 
     def _propose_entry(self, call: ToolCall, args) -> Reply:
-        paise = parse_amount_paise(args.amount_spoken)
+        paise = parse_amount_paise(args.amount_spoken, spelling_fixes=self.fixes.number_spellings)
         if paise is None:
             # Never guess an amount. The agent asks and the owner repeats it.
             return self._say("Amount samajh nahi aaya. Kitne rupaye?")
@@ -206,7 +225,7 @@ class Executor:
     # --- stock ---
 
     def _propose_stock(self, call: ToolCall, args) -> Reply:
-        signed = parse_signed_quantity(args.qty_delta_spoken)
+        signed = parse_signed_quantity(args.qty_delta_spoken, spelling_fixes=self.fixes.number_spellings)
         if signed is None:
             return self._say("Kitne? Number samajh nahi aaya.")
         if signed.denominator != 1:
@@ -243,7 +262,7 @@ class Executor:
     def _low_stock(self, args) -> Reply:
         threshold = None
         if args.threshold_spoken:
-            value = parse_number(args.threshold_spoken)
+            value = parse_number(args.threshold_spoken, spelling_fixes=self.fixes.number_spellings)
             if value is None or value.denominator != 1:
                 return self._say("Kitne se kam? Number samajh nahi aaya.")
             threshold = int(value)

@@ -40,6 +40,7 @@ from app.adapters.base import AudioClip, Message
 from app.adapters.usage import MAX_REQUESTS_PER_MINUTE, stt_cost_inr
 from app.channel.degrade import Condition, degrade, to_pcm16
 from eval.conditions import CONDITIONS, by_id, load_noise_bank, noise_for, rng_for
+from app.agent.fixes import ALL, NONE
 from eval.metrics import Outcome, score_call
 from eval.normalize import devanagari_fraction, normalise_text, raw_text
 
@@ -295,15 +296,18 @@ def summarise(rows: list[dict]) -> dict:
     if heard:
         out["amount"] = {"n": len(heard), **{k: heard.count(k) for k in ("kept", "changed", "lost")}}
         out["amount"]["kept_rate"] = round(out["amount"]["kept"] / len(heard), 4)
-    scored = [r for r in rows if "outcome" in r]
-    if scored:
-        counts = {o.value: sum(r["outcome"] == o.value for r in scored) for o in Outcome}
-        out["task"] = {
-            "n": len(scored),
-            **counts,
-            "accuracy": round(counts["correct"] / len(scored), 4),
-            "wrong_rate": round(counts["wrong"] / len(scored), 4),
-        }
+    # "task" is the product as it runs (fixes on); "task_before" the same proposals
+    # with the M4 fixes off. Rows scored before the switch existed have only "outcome".
+    for key, field in (("task", "outcome"), ("task_before", "outcome_before")):
+        scored = [r for r in rows if field in r]
+        if scored:
+            counts = {o.value: sum(r[field] == o.value for r in scored) for o in Outcome}
+            out[key] = {
+                "n": len(scored),
+                **counts,
+                "accuracy": round(counts["correct"] / len(scored), 4),
+                "wrong_rate": round(counts["wrong"] / len(scored), 4),
+            }
     return out
 
 
@@ -385,9 +389,16 @@ async def run(args) -> int:
         for r in rows:
             hit = read_json(task_cache_key(r["transcript"], settings.evon_model, prompt_sha))
             if hit:
-                s = score_call(take_by_id[r["id"]], hit["tool"], hit["arguments"],
-                               known_customers=known, known_items=stock)
-                r.update(outcome=s.outcome.value, reasons=list(s.reasons),
+                # Both sides of the M4 comparison come from this one cached proposal:
+                # every fix acts after Evon, so "before" costs nothing to re-score (D-042).
+                for side, fixes in (("before", NONE), ("after", ALL)):
+                    s = score_call(take_by_id[r["id"]], hit["tool"], hit["arguments"],
+                                   known_customers=known, known_items=stock,
+                                   fixes=fixes, utterance=r["transcript"])
+                    r[f"outcome_{side}"], r[f"reasons_{side}"] = s.outcome.value, list(s.reasons)
+                    if side == "after":
+                        r["fix_applied"] = s.details.get("fix_applied")
+                r.update(outcome=r["outcome_after"], reasons=r["reasons_after"],
                          proposal={"tool": hit["tool"], "arguments": hit["arguments"]}, evon_ms=hit.get("ms"))
 
     if args.dry_run or not rows:

@@ -140,12 +140,23 @@ IGNORED = frozenset(
 # "paise" would make the unit sub-rupee, and we will not guess which was meant.
 REFUSED = frozenset(normalise(w) for w in "paisa paise paisa".split())
 
+# M4 fix 2 (D-042): spellings the real models produced that folding cannot reach,
+# kept apart so the eval can score with and without them from one commit.
+# Each is a measured case: Evon wrote "ikkes" (ikkees, 21) and "unteen" (untees,
+# 29) on text (D-031); Prisma wrote "nao" for nau (9), turning 940 into 140
+# (D-038). No blanket e/i folding: "ten" and "teen" must stay apart.
+SPELLING_FIXES = _table({"ikkes": 21, "unteen": 29, "nao": 9})
+# "aath sau mile" (800 received): Evon carried the verb into amount_spoken.
+FILLER_FIXES = frozenset(normalise(w) for w in "mile mila".split())
+UNITS_FIXED = {**UNITS, **{k: v for k, v in SPELLING_FIXES.items() if k not in UNITS}}
+IGNORED_FIXED = IGNORED | FILLER_FIXES
+
 
 def _tokens(text: str) -> list[str]:
     return _TOKEN.findall(text.lower())
 
 
-def _english_hundreds_idiom(tokens: list[str]) -> Fraction | None:
+def _english_hundreds_idiom(tokens: list[str], ignored: frozenset[str] = IGNORED) -> Fraction | None:
     """"one fifty" is 150, not 51.
 
     Indian English says an amount as hundreds-then-tens with the "hundred" left
@@ -153,7 +164,7 @@ def _english_hundreds_idiom(tokens: list[str]) -> Fraction | None:
     (25) and "one hundred fifty" are untouched.
     """
     words = [normalise(t) for t in tokens if not t.isdigit()]
-    words = [w for w in words if w not in IGNORED]
+    words = [w for w in words if w not in ignored]
     if len(words) != 2 or any(w not in ENGLISH_UNITS for w in words):
         return None
     first, second = ENGLISH_UNITS[words[0]], ENGLISH_UNITS[words[1]]
@@ -162,12 +173,18 @@ def _english_hundreds_idiom(tokens: list[str]) -> Fraction | None:
     return None
 
 
-def parse_number(text: str) -> Fraction | None:
-    """The numeric value of a spoken phrase, or None if it cannot be read with certainty."""
+def parse_number(text: str, *, spelling_fixes: bool = True) -> Fraction | None:
+    """The numeric value of a spoken phrase, or None if it cannot be read with certainty.
+
+    `spelling_fixes=False` is the parser as it was before M4 fix 2, for the eval's
+    "before" (app/agent/fixes.py).
+    """
+    units = UNITS_FIXED if spelling_fixes else UNITS
+    ignored = IGNORED_FIXED if spelling_fixes else IGNORED
     tokens = _tokens(text)
     if not tokens:
         return None
-    if (idiom := _english_hundreds_idiom(tokens)) is not None:
+    if (idiom := _english_hundreds_idiom(tokens, ignored)) is not None:
         return idiom
 
     total = Fraction(0)
@@ -190,7 +207,7 @@ def parse_number(text: str) -> Fraction | None:
             continue
 
         word = normalise(token)
-        if not word or word in IGNORED:
+        if not word or word in ignored:
             continue
         if word in REFUSED:
             return None
@@ -204,8 +221,8 @@ def parse_number(text: str) -> Fraction | None:
             if pending is not None:
                 return None  # two fraction words in a row
             pending = Fraction(FRACTION_DELTAS[word])
-        elif word in UNITS:
-            value = Fraction(UNITS[word])
+        elif word in units:
+            value = Fraction(units[word])
             if pending is not None:
                 value, pending = value + pending, None
             current = value if current is None else current + value
@@ -230,14 +247,14 @@ def parse_number(text: str) -> Fraction | None:
     return total
 
 
-def parse_amount_paise(text: str) -> int | None:
+def parse_amount_paise(text: str, *, spelling_fixes: bool = True) -> int | None:
     """A spoken amount as integer paise, or None if it is not certain.
 
     Money is integer paise everywhere (hard rule 6). A value that is not a whole
     number of paise, is not positive, or is implausibly large is refused rather
     than rounded.
     """
-    value = parse_number(text)
+    value = parse_number(text, spelling_fixes=spelling_fixes)
     if value is None:
         return None
     paise = value * 100
@@ -249,7 +266,7 @@ def parse_amount_paise(text: str) -> int | None:
     return paise
 
 
-def parse_signed_quantity(text: str) -> Fraction | None:
+def parse_signed_quantity(text: str, *, spelling_fixes: bool = True) -> Fraction | None:
     """A stock change: "bees" is +20, "minus das" is -10.
 
     Shared by the executor and the eval, so the eval scores exactly what the
@@ -262,17 +279,17 @@ def parse_signed_quantity(text: str) -> Fraction | None:
         if lowered.startswith(prefix):
             sign, stripped = -1, stripped[len(prefix):].strip()
             break
-    magnitude = parse_quantity(stripped)
+    magnitude = parse_quantity(stripped, spelling_fixes=spelling_fixes)
     return None if magnitude is None else sign * magnitude
 
 
-def parse_quantity(text: str) -> Fraction | None:
+def parse_quantity(text: str, *, spelling_fixes: bool = True) -> Fraction | None:
     """A spoken stock quantity, which may be fractional ("saadhe teen kilo").
 
     Returned as a Fraction rather than an int: whether loose goods are supported
     is the executor's decision, not this module's (risk R6).
     """
-    value = parse_number(text)
+    value = parse_number(text, spelling_fixes=spelling_fixes)
     if value is None or value <= 0 or value > 1_000_000:
         return None
     return value

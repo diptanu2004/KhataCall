@@ -7,6 +7,7 @@ Writes PNGs next to the results file:
   <stem>_stt.png     word error rate per condition, raw and normalised
   <stem>_curves.png  normalised WER against SNR and against packet loss (mobile)
   <stem>_task.png    correct / caught / wrong per condition, if the agent stage ran
+  <stem>_fixes.png   correct and wrong, M4 fixes off vs on, from the same proposals
 """
 
 import argparse
@@ -122,6 +123,42 @@ def task_chart(summary: dict, out: Path) -> bool:
     return True
 
 
+BEFORE = "#b9b5ad"  # recessive grey: the baseline the fixes are measured against
+
+
+def fixes_chart(summary: dict, out: Path, label: str = "") -> bool:
+    """Before/after the M4 fixes: two panels on one condition axis, both in percent."""
+    ids = [c for c in summary if "task" in summary[c] and "task_before" in summary[c]][::-1]
+    if not ids:
+        return False
+    fig, (left, right) = plt.subplots(
+        1, 2, figsize=(9.5, 0.4 * len(ids) + 1.6), sharey=True, facecolor=SURFACE
+    )
+    h = 0.38
+    y = list(range(len(ids)))
+    panels = ((left, "accuracy", "Correct (higher is better)"), (right, "wrong_rate", "Wrong (lower is better)"))
+    for ax, key, title in panels:
+        _style(ax)
+        before = [summary[c]["task_before"][key] * 100 for c in ids]
+        after = [summary[c]["task"][key] * 100 for c in ids]
+        ax.barh([i + h / 2 for i in y], before, height=h - 0.04, color=BEFORE, label="before fixes")
+        ax.barh([i - h / 2 for i in y], after, height=h - 0.04, color=NORMALISED, label="after fixes")
+        for i, v in zip(y, after, strict=True):
+            ax.text(v + 1, i - h / 2, f"{v:.0f}%", va="center", fontsize=8, color=INK)
+        ax.set_xlim(0, 100)
+        ax.set_title(title, loc="left", color=INK, fontsize=10)
+    left.set_yticks(y, ids, color=INK)
+    left.legend(frameon=False, fontsize=8, loc="lower right", labelcolor=MUTED)
+    n = summary[ids[0]]["task"]["n"]
+    which = f"{label}, " if label else ""
+    fig.suptitle(f"Task outcome before and after the M4 fixes ({which}same Evon proposals, n={n} per condition)",
+                 x=0.01, ha="left", color=INK, fontsize=11)
+    fig.tight_layout()
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("results", nargs="?", help="results JSON (default: newest baseline_*.json)")
@@ -145,6 +182,9 @@ def main() -> int:
     task = stem.with_name(stem.name + "_task.png")
     if task_chart(summary, task):
         written.append(task)
+    fixes = stem.with_name(stem.name + "_fixes.png")
+    if fixes_chart(summary, fixes, data.get("label", "")):
+        written.append(fixes)
     for w in written:
         print(f"wrote {w}")
     return 0

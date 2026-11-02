@@ -28,6 +28,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from app.agent.fixes import ALL, Fixes, apply_to_proposal
 from app.agent.tools import args_model_for
 from app.nlu.names import Decision, match_name
 from app.nlu.numbers import normalise, parse_amount_paise, parse_number, parse_signed_quantity
@@ -76,6 +77,8 @@ def score_call(
     *,
     known_customers: list[str],
     known_items: list[str] | None = None,
+    fixes: Fixes = ALL,
+    utterance: str | None = None,
 ) -> Score:
     """Score one proposal against one corpus row.
 
@@ -85,11 +88,18 @@ def score_call(
     the stock list: a misheard item that matches none of it is read back as
     "naya item hai", so it counts as caught, like an unknown customer.
     """
+    # The fixes run first, as in the executor: `utterance` is the transcript the
+    # agent saw (the corpus text, when scoring text input).
+    fix_applied = None
+    if utterance is not None:
+        tool_name, arguments, fix_applied = apply_to_proposal(fixes, utterance, tool_name, arguments)
+    spelling = fixes.number_spellings
+
     args = arguments or {}
     expected = row["intent"]
     reasons: list[str] = []
     caught: list[str] = []
-    details: dict[str, Any] = {"tool": tool_name, "arguments": args}
+    details: dict[str, Any] = {"tool": tool_name, "arguments": args, "fix_applied": fix_applied}
 
     if tool_name is None:
         return Score(Outcome.CAUGHT, intent_ok=False, reasons=("no tool call",), details=details)
@@ -132,7 +142,7 @@ def score_call(
     # --- amount: parsed the way the executor parses it ---
     if row.get("amount_paise"):
         spoken = str(args.get("amount_spoken") or "")
-        paise = parse_amount_paise(spoken) if spoken else None
+        paise = parse_amount_paise(spoken, spelling_fixes=spelling) if spoken else None
         details["amount_paise"] = paise
         converted = _has_digits(spoken) and not _has_digits(row["text"])
         if paise is None:
@@ -157,7 +167,7 @@ def score_call(
 
     if expected == "update_stock" and row.get("qty"):
         spoken = str(args.get("qty_delta_spoken") or "")
-        qty = parse_signed_quantity(spoken) if spoken else None
+        qty = parse_signed_quantity(spoken, spelling_fixes=spelling) if spoken else None
         details["qty"] = str(qty) if qty is not None else None
         if qty is None:
             qty_ok = False
@@ -171,14 +181,14 @@ def score_call(
         spoken = args.get("threshold_spoken")
         expected_threshold = row.get("qty") or None
         if expected_threshold is None:
-            invented = parse_number(str(spoken)) if spoken else None
+            invented = parse_number(str(spoken), spelling_fixes=spelling) if spoken else None
             qty_ok = not spoken
             if invented is not None:
                 reasons.append(f"invented a threshold: {spoken}")
             elif spoken:
                 caught.append(f"unparseable threshold {spoken!r}")  # the executor would ask
         else:
-            value = parse_number(str(spoken)) if spoken else None
+            value = parse_number(str(spoken), spelling_fixes=spelling) if spoken else None
             qty_ok = value is not None and float(value) == float(expected_threshold)
             if value is None:
                 caught.append("threshold missing or unparseable")

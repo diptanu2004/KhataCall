@@ -1036,3 +1036,55 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
   fakes mode both STT fakes share one script, so toggling mid-conversation
   keeps its place.
 
+## D-042 — M4 fixes 1 and 2, behind one switch; dev-set before/after
+- **Date:** 2026-11-02 · **Status:** Built. Measured on the dev set; held-out
+  set pending (Nov 4).
+- **The switch.** `app/agent/fixes.py` holds a `Fixes` value (`ALL` in the
+  product, `NONE` for "before"), passed explicitly to the executor and to
+  `score_call`, not a global. Every fix acts *after* Evon, in code, so the eval
+  scores each row twice from the **same cached Evon proposal**: before and after
+  come from one commit and cost nothing to re-score. Check: "before"
+  reproduces D-039 exactly, condition by condition.
+- **Fix 1, payment guard.** `money_direction()` reads the agent-role grammar:
+  "X **ne** ... de/diye/die/diya/jama/wapas/chukaye" (X paid us), or a
+  received-cue with no subject ("jama", "chukta", "mile") → payment; "udhaar"
+  → credit; both or neither → leave Evon's proposal alone. "X **ko** ... diye"
+  (we lent X money) is deliberately *not* a payment cue. If Evon proposed the
+  other money tool, the guard swaps it, keeping customer and amount as spoken.
+  - **Swap, not ask** (D-031 had suggested asking "udhaar ya payment?"): the
+    read-back still says "jama kar doon?" and waits for "haan", so a wrong swap
+    is caught exactly like a wrong proposal, while a right one saves a turn.
+  - **Precision checked before wiring it in:** on all 180 corpus sentences it
+    finds all 45 payments and contradicts no label; on all 720 transcripts
+    (12 conditions), it contradicts no label.
+- **Fix 2, spellings.** `SPELLING_FIXES` in `numbers.py`: "ikkes" (21),
+  "unteen" (29) from Evon (D-031), "nao" (9) from Prisma (D-038); "mile"/"mila"
+  as fillers ("aath sau mile"). Each is a measured case; still no blanket e/i
+  folding ("ten"/"teen" stay apart, tested). Behind `spelling_fixes=` so the
+  "before" parser is still callable. The WER normaliser is pinned to the
+  pre-fix parser: WER measures Prisma and must not move when the agent improves.
+- **Dev-set result (60 takes x 12 conditions, `eval/results/m4dev_2026-11-02*`):**
+
+| condition | correct before → after | wrong before → after |
+|---|---|---|
+| clean | 70.0% → **78.3%** | 11.7% → **6.7%** |
+| landline / mob / mob_loss1 | 73.3% → 81.7% | 10.0% → 5.0% |
+| mob_snr10 | 71.7% → 80.0% | 10.0% → 5.0% |
+| mob_snr5 | 55.0% → 60.0% | 20.0% → 16.7% |
+| mob_snr0 | 28.3% → 30.0% | 46.7% → 43.3% |
+| mob_worst | 45.0% → 48.3% | 25.0% → 20.0% |
+| mob_harsh | 25.0% → 25.0% | 58.3% → 58.3% |
+
+  The guard fired on 30 rows: 26 became correct, 4 caught, 0 wrong. **No row,
+  in any condition, got worse.**
+- **What the fixes do not touch:** heavy noise. At SNR 0 the errors are wrong
+  intents, names and amounts from half-heard sentences (D-039); fix 4 (don't act
+  on fragments) is the one aimed there.
+- **Honest limits, for the README and interviews:**
+  1. These are **dev-set** numbers: the fixes were designed by reading these
+     very failures. `eval/corpus/dev_ids.txt` freezes those 60 ids now, before
+     the other 120 are recorded, so the split cannot drift.
+  2. The held-out set is new **recordings** of corpus sentences whose *text*
+     was already seen (the D-031 text run covered all 180). It tests whether
+     the fixes survive new transcription errors, not new phrasings.
+

@@ -127,6 +127,7 @@ khatacall/
       prompts.py         # system prompt (Hinglish shop assistant)
       tools.py           # tool schemas + Pydantic arg models
       executor.py        # validation, name resolution, confirmation gate
+      fixes.py           # the M4 fixes behind one switch: payment guard, spellings
     nlu/
       numbers.py         # Hinglish/Hindi/English spoken numbers → paise
       names.py           # honorific stripping + fuzzy match
@@ -141,6 +142,7 @@ khatacall/
     corpus/scripts.csv   # ground-truth labels (committed)
     corpus/audio/        # recordings (gitignored if large)
     noise/               # background noise: Freesound CC0 Indian streets, see noise/SOURCES.md
+    corpus/dev_ids.txt   # the 60 takes the M4 fixes were designed from (D-042)
     conditions.py  normalize.py  metrics.py  run_eval.py  report.py
     cache/  results/
   tests/
@@ -293,9 +295,12 @@ come from the same commit and the same cached transcripts.
 **Mon Nov 2**
 - [x] Phone-line mode: UI switch + noise/loss pickers (the eval grid's values, with the measured
       result shown); utterance degraded by `degrade.py`, sent to Prisma REST; digit read-back on (D-041)
-- [ ] Fix switch in the agent, and `run_eval --fixes off|on`
-- [ ] Fix 1, payment guard: "ne" + a giving verb (de/diye/die/diya/jama) → `record_payment` (D-039 #1)
-- [ ] Fix 2, number spellings: "nao", "ikkes", "unteen", filler "mile" (D-031, D-038)
+- [x] Fix switch (`app/agent/fixes.py`); every eval row is scored with fixes off *and* on
+      from the same cached Evon proposal (D-042)
+- [x] Fix 1, payment guard: "ne" + a giving verb (de/diye/die/diya/jama) → `record_payment` (D-039 #1)
+- [x] Fix 2, number spellings: "nao", "ikkes", "unteen", filler "mile" (D-031, D-038)
+- [x] Dev set frozen: `eval/corpus/dev_ids.txt` (the 60 takes the fixes were designed from).
+      Dev result: clean 70.0% → 78.3% correct, wrong 11.7% → 6.7%; no row made worse (D-042)
 - [ ] [human] Post #1, with the baseline chart as the hook
 - [ ] [human] Calibrate the mic, then start recording the 120 lines
 
