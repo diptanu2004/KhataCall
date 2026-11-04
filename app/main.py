@@ -114,8 +114,9 @@ async def voice(websocket: WebSocket) -> None:
         pass
     finally:
         await session.aclose()
-        if hasattr(batch_stt, "aclose"):
-            await batch_stt.aclose()
+        for adapter in (batch_stt, llm, tts):
+            if hasattr(adapter, "aclose"):
+                await adapter.aclose()
         database.close()
         log.info("session %s closed", session_id)
 

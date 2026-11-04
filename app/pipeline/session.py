@@ -115,6 +115,7 @@ class Session:
         self._stack: AsyncExitStack | None = None
         self._live: Any = None
         self._closing: set[asyncio.Task] = set()
+        self._warming: asyncio.Task | None = None
         # Diagnostics for one turn: how the browser's audio actually arrived.
         self._pushes = 0
         self._pushed_bytes = 0
@@ -198,9 +199,22 @@ class Session:
         else:
             self._buffer = None
             await self._open_stt()
+        self._warm_llm()
+        # Every turn ends in speech, so Timbre's socket opens now, behind the owner's own
+        # words. Opened at release instead, a "haan" turn (~0.2 s of STT) could not hide a
+        # slow handshake (D-046). Timbre bills characters, so an open socket costs nothing.
+        if (prepare := getattr(self._tts, "prepare", None)) is not None:
+            await prepare()
         self._pushes = self._pushed_bytes = 0
         self._first_push_at = self._last_push_at = None
         await self._set_state(State.LISTENING)
+
+    def _warm_llm(self) -> None:
+        """Open Evon's connection while the owner speaks, as the Prisma socket is (D-046)."""
+        warm = getattr(self._llm, "warm", None)
+        if warm is None or (self._warming is not None and not self._warming.done()):
+            return
+        self._warming = asyncio.create_task(warm())
 
     async def _open_stt(self) -> None:
         """Open the Prisma socket on button-press, so its handshake overlaps with speech."""
@@ -415,8 +429,9 @@ class Session:
 
     async def aclose(self) -> None:
         self._release_stt()
-        if self._closing:
-            await asyncio.gather(*self._closing, return_exceptions=True)
+        pending = [*self._closing, *([self._warming] if self._warming else [])]
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
 
     @property
     def history(self) -> Sequence[Message]:

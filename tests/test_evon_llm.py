@@ -219,3 +219,30 @@ def test_empty_choices_raises():
 def test_rejects_unknown_tool_mode():
     with pytest.raises(ValueError, match="tool_mode"):
         EvonLLM(base_url="http://x/v1", tool_mode="magic")
+
+
+# --- connection reuse (D-046) ------------------------------------------------
+
+
+def test_warm_opens_the_connection_with_a_health_request():
+    llm, seen = build([httpx.Response(200, json={"status": "ok"})], api_key="k")
+    asyncio.run(llm.warm())
+    assert [str(r.url) for r in seen] == ["http://localhost:8001/health"]
+    assert seen[0].headers["Authorization"] == "Bearer k"
+
+
+def test_a_failed_warm_up_is_silent():
+    def handler(request):
+        raise httpx.ConnectError("connection refused")
+
+    llm = EvonLLM(base_url="http://localhost:8001/v1", client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    asyncio.run(llm.warm())  # no exception: complete() is what reports an outage
+
+
+def test_idle_connections_outlive_the_gap_between_turns():
+    from app.adapters.evon_llm import KEEPALIVE_S
+
+    llm = EvonLLM(base_url="http://localhost:8001/v1")
+    pool = llm._client._transport._pool
+    assert pool._keepalive_expiry == KEEPALIVE_S >= 30
+    asyncio.run(llm.aclose())

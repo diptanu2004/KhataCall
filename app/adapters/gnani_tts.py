@@ -4,15 +4,20 @@ Docs: https://docs.gnani.ai/api/TTS/tts-websocket
 Audio arrives as base64 inside JSON messages; we decode and yield raw PCM16.
 """
 
+import asyncio
 import base64
 import json
+import logging
 from collections.abc import AsyncIterator, Callable
+from contextlib import AsyncExitStack
 from typing import Any
 
 import websockets
 
 from app.adapters.gnani_common import API_KEY_HEADER, GnaniAPIError, require_key
 from app.adapters.usage import record_tts
+
+log = logging.getLogger(__name__)
 
 # Only Poorvi is listed for hi-en (Hinglish) in the voice catalog: https://docs.gnani.ai/api/TTS/available-voices
 DEFAULT_VOICE = "Poorvi"
@@ -39,6 +44,58 @@ class TimbreTTS:
         self.sample_rate = sample_rate
         self._speed = speed
         self._connect = connect
+        self._spare: asyncio.Task[tuple[AsyncExitStack, Any]] | None = None
+
+    async def prepare(self) -> None:
+        """Open the next reply's socket now, so its handshake overlaps STT and Evon.
+
+        The handshake is ~450 ms of a ~700 ms first chunk (D-046). Each socket
+        still carries one request: a second request on an open socket returns a
+        bare `complete` with no audio (D-018), so this changes *when* the socket
+        opens, not how many requests it carries (HLD §12.2).
+        """
+        if self._spare is None:
+            self._spare = asyncio.create_task(self._open())
+
+    async def _open(self) -> tuple[AsyncExitStack, Any]:
+        stack = AsyncExitStack()
+        headers = {API_KEY_HEADER: require_key(self._api_key)}
+        ws = await stack.enter_async_context(self._connect(self._ws_url, additional_headers=headers))
+        return stack, ws
+
+    async def _sent(self, request: str) -> tuple[AsyncExitStack, Any]:
+        """A socket that has accepted `request`: the pre-opened one if it is still good."""
+        spare, self._spare = self._spare, None
+        if spare is not None:
+            try:
+                stack, ws = await spare
+            except Exception:
+                log.info("pre-opened Timbre socket failed to connect; opening a fresh one")
+            else:
+                try:
+                    await ws.send(request)
+                    return stack, ws
+                except websockets.ConnectionClosed:
+                    await stack.aclose()
+                    log.info("pre-opened Timbre socket was closed while waiting; opening a fresh one")
+        stack, ws = await self._open()
+        try:
+            await ws.send(request)
+        except BaseException:
+            await stack.aclose()
+            raise
+        return stack, ws
+
+    async def aclose(self) -> None:
+        """Close a pre-opened socket nobody used."""
+        spare, self._spare = self._spare, None
+        if spare is None:
+            return
+        try:
+            stack, _ = await spare
+        except Exception:
+            return
+        await stack.aclose()
 
     def _request(self, text: str, language: str, voice: str) -> dict[str, Any]:
         return {
@@ -59,13 +116,11 @@ class TimbreTTS:
         }
 
     async def synthesize(self, text: str, *, language: str, voice: str) -> AsyncIterator[bytes]:
-        # One connection per utterance keeps this simple. Reusing a connection across turns
-        # would save the handshake; that is an M4 latency experiment.
-        headers = {API_KEY_HEADER: require_key(self._api_key)}
+        require_key(self._api_key)
         # Billed per 10,000 characters of input text, so the cost is known up front.
         record_tts(len(text), model=self.model_id)
-        async with self._connect(self._ws_url, additional_headers=headers) as ws:
-            await ws.send(json.dumps(self._request(text, language, voice), ensure_ascii=False))
+        stack, ws = await self._sent(json.dumps(self._request(text, language, voice), ensure_ascii=False))
+        async with stack:
             leftover = b""  # chunk boundaries are not guaranteed to fall on 2-byte samples
             async for message in ws:
                 if isinstance(message, bytes):

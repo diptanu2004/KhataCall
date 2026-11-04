@@ -327,8 +327,11 @@ come from the same commit and the same cached transcripts.
 - [ ] **Decision gate:** if the 120 are not recorded by Wed noon, do before/after on the 60 and say so
 
 **Thu Nov 5**
-- [ ] End-to-end latency with real Evon: replay takes through `/ws`, p50/p90 per stage
-- [ ] Latency fixes, half a day maximum: llama.cpp prompt caching, TTS on the first sentence, a shorter prompt
+- [x] End-to-end latency with real Evon: replay takes through `/ws`, p50/p90 per stage
+      (`scripts.e2e_latency`) — request p50 3.03 s, p90 5.35 s; "haan" p50 0.93 s (D-046)
+- [x] Latency fixes, half a day maximum. Measured first: prompt caching was already on, so a
+      shorter prompt buys nothing. Built instead: Evon keep-alive + warm-up on press, Timbre socket
+      pre-opened on press → request p50 **2.35 s**, p90 **3.20 s**; "haan" p50 0.80 s (D-046)
 - [ ] **FEATURE FREEZE** at the end of the day
 
 ### M5 — Package and ship (Fri Nov 6 – Mon Nov 9)

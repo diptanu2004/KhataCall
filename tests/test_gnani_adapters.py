@@ -8,6 +8,7 @@ import wave
 
 import httpx
 import pytest
+import websockets
 
 from app.adapters.base import STT, TTS, AudioClip
 from app.adapters.gnani_common import GnaniAPIError, to_wav_bytes
@@ -220,3 +221,76 @@ def test_timbre_rejects_out_of_range_config():
         TimbreTTS("k", sample_rate=4000)
     with pytest.raises(ValueError):
         TimbreTTS("k", speed=2.0)
+
+
+# --- pre-opening Timbre's socket (D-046) ---------------------------------------
+
+
+class TrackedSocket(FakeTimbreSocket):
+    def __init__(self, messages: list[dict], exited: list[int], index: int, *, closed: bool) -> None:
+        super().__init__(messages)
+        self._exited, self._index, self._closed = exited, index, closed
+
+    async def send(self, data: str) -> None:
+        if self._closed:
+            raise websockets.ConnectionClosed(None, None)
+        await super().send(data)
+
+    async def __aexit__(self, *exc):
+        self._exited.append(self._index)
+        return False
+
+
+class CountingConnect:
+    """Hands out a fresh socket per connect, and records which ones were closed."""
+
+    def __init__(self, messages: list[dict], *, first_closed: bool = False) -> None:
+        self.messages = messages
+        self.first_closed = first_closed
+        self.sockets: list[TrackedSocket] = []
+        self.exited: list[int] = []
+
+    def __call__(self, url, **kwargs):
+        index = len(self.sockets)
+        socket = TrackedSocket(self.messages, self.exited, index, closed=self.first_closed and index == 0)
+        self.sockets.append(socket)
+        return socket
+
+
+def test_a_prepared_socket_carries_the_next_reply_and_no_second_connect_is_made():
+    connect = CountingConnect([audio_event(0, b"\x01\x02"), COMPLETE])
+    tts = TimbreTTS("test-key", connect=connect)
+
+    async def run():
+        await tts.prepare()
+        await asyncio.sleep(0)  # the handshake runs while STT and Evon would
+        assert len(connect.sockets) == 1
+        return [c async for c in tts.synthesize("Likh diya.", language="hi-en", voice="Poorvi")]
+
+    assert asyncio.run(run()) == [b"\x01\x02"]
+    assert len(connect.sockets) == 1 and connect.sockets[0].sent[0]["text"] == "Likh diya."
+    assert connect.exited == [0]
+
+
+def test_a_prepared_socket_closed_while_waiting_falls_back_to_a_fresh_one():
+    connect = CountingConnect([audio_event(0, b"\x01\x02"), COMPLETE], first_closed=True)
+    tts = TimbreTTS("test-key", connect=connect)
+
+    async def run():
+        await tts.prepare()
+        return [c async for c in tts.synthesize("Likh diya.", language="hi-en", voice="Poorvi")]
+
+    assert asyncio.run(run()) == [b"\x01\x02"]
+    assert len(connect.sockets) == 2 and connect.exited == [0, 1]
+
+
+def test_an_unused_prepared_socket_is_closed():
+    connect = CountingConnect([COMPLETE])
+    tts = TimbreTTS("test-key", connect=connect)
+
+    async def run():
+        await tts.prepare()
+        await tts.aclose()
+
+    asyncio.run(run())
+    assert connect.exited == [0]

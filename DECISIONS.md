@@ -1254,3 +1254,68 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
   to a half, by refusing to act on what was not heard. On a ledger, a re-ask
   costs seconds; a wrong entry costs money and trust.
 
+## D-046 — End-to-end latency with all three real models, and the two fixes it pointed to
+- **Date:** 2026-11-05 · **Status:** Built, measured. `scripts/e2e_latency.py`;
+  results `eval/results/latency_2026-11-05_before.json` and `_real.json` (after).
+- **Method.** 30 corpus takes (every intent, spread as in `scripts.record`)
+  replayed through `/ws` at real-time cadence, each as its own call on a fresh
+  connection, with a "haan" turn (Timbre's voice, D-032) after every read-back:
+  30 request turns and 20 confirmations per run. The numbers are the session's
+  own `latency` message, the same ones the UI shows. The server runs on a scratch,
+  freshly seeded ledger. Four runs in one evening (Nov 5, 01:30-03:00 IST), each
+  about Rs 7.30 (Rs 6.30 of that is Timbre characters); Rs 30.77 in all,
+  including a 12-call Timbre handshake probe.
+- **Baseline.** Request turns: p50 **3029 ms**, p90 5349 ms. Confirmations
+  (no Evon, D-006): p50 931 ms, p90 2896 ms.
+- **Measured before fixing anything,** because two of the three planned fixes
+  (D-040) assumed a cause:
+  - *Evon*, from llama-server's own `timings`: **prompt caching was already
+    working.** 1,914 of ~1,935 prompt tokens were cached, leaving ~20 tokens and
+    ~190 ms of prefill. Generation is 25-43 tokens at ~67 tok/s (350-760 ms).
+    The tunnel round trip is 330-460 ms warm, and ~1.3 s for a request that has
+    to open a connection. So "enable prompt caching" and "a shorter prompt" would
+    have bought nothing. Dropped.
+  - *Timbre*, connect timed apart from synthesis: the WebSocket handshake took
+    **450-510 ms of a ~700 ms first chunk** (synthesis only 220-500 ms), and one
+    connect took 1,633 ms. Reply length did not matter: slow replies averaged 44-46
+    characters, fast ones 47-48. So "TTS on the first sentence" would also have
+    bought nothing (replies are already one short sentence). Dropped.
+- **Fix A: Evon's connection.** httpx closes idle connections after 5 s, which is
+  shorter than the gap between two requests in a conversation, and adapters are
+  built per call. So most requests paid a TCP + TLS handshake through the tunnel.
+  Now the keep-alive is 60 s (`KEEPALIVE_S`) and `EvonLLM.warm()` sends a `/health`
+  request when push-to-talk is pressed, so the handshake overlaps the owner's speech.
+  Evon p50 1623 → 1494 ms, p90 2221 → 1717 ms.
+- **Fix B: pre-open Timbre's socket** (HLD §12.2, planned since Oct 7).
+  `TimbreTTS.prepare()` opens the next reply's socket in the background, and
+  `synthesize` uses it if it is still good, otherwise opens a fresh one. One
+  request per socket still holds (D-018).
+  - *Opened at release first:* request turns' Timbre p90 fell 2765 → 726 ms and
+    their slow first chunks disappeared, but 8 of 20 "haan" turns were still slow.
+    Those turns have only ~0.2 s of STT to hide the handshake behind.
+  - **That locates Timbre's "slow mode": it is slow handshakes**, not slow
+    synthesis or server load on synthesis. That is a correction of HLD §12.1's
+    reading.
+  - *Opened at press instead:* **0 of 50** slow first chunks. Timbre bills by
+    character, so holding an open socket while the owner speaks costs nothing.
+    If the server closes it first, the fallback to a fresh socket is tested.
+
+| run | request p50 / p90 | "haan" p50 / p90 | slow Timbre chunks |
+|---|---|---|---|
+| before | 3029 / 5349 ms | 931 / 2896 ms | 17 / 50 |
+| + Evon keep-alive and warm-up | 2829 / 5359 | 1131 / 2976 | 22 / 50 |
+| + Timbre pre-opened at release | 2458 / 4140 | 777 / 2570 | 8 / 50 (all "haan") |
+| **+ Timbre pre-opened at press** | **2354 / 3198** | **796 / 1165** | **0 / 50** |
+
+- **Caveats.** One evening, and Gnani latency drifts over time (HLD §12.1), so
+  rows are not a controlled A/B. The Timbre result is the robust one: the slow
+  mode followed the handshake across runs, from requests only to "haan" only to
+  none. The Evon gain is small enough to be partly drift.
+- **What is left.**
+  - Evon at ~1.5 s is the largest stage, and about 0.4 s of it is the tunnel to
+    Kaggle. In production it would be served in-region, where only generation
+    (~0.5 s) and prefill (~0.2 s) would remain.
+  - Prisma's realtime endpoint stalls for ~10 s in 1 to 3 turns of every 50, and
+    its own `server_latency_ms` reports the same 10 s, so it is Gnani-side. The
+    UI shows every turn's latency, so a stall in the demo is visible, not hidden.
+

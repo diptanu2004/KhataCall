@@ -33,6 +33,11 @@ DEFAULT_EXTRA_BODY: dict[str, Any] = {"chat_template_kwargs": {"enable_thinking"
 
 _JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
 
+# Seconds an idle connection to Evon stays open. httpx's default is 5 s, shorter
+# than the gap between two requests in a conversation, so nearly every turn paid
+# a fresh TCP + TLS handshake through the tunnel: ~0.9 s measured (D-046).
+KEEPALIVE_S = 60.0
+
 
 class EvonError(RuntimeError):
     def __init__(self, message: str, *, status: int | None = None) -> None:
@@ -90,13 +95,36 @@ class EvonLLM:
             raise ValueError(f"tool_mode must be 'native' or 'prompt', got {tool_mode!r}")
         self.model_id = model
         self._url = base_url.rstrip("/") + "/chat/completions"
+        self._health_url = base_url.rstrip("/").removesuffix("/v1") + "/health"
         self._api_key = api_key
         self._tool_mode = tool_mode
         self._temperature = temperature
         self._max_tokens = max_tokens
         self._extra_body = DEFAULT_EXTRA_BODY if extra_body is None else extra_body
-        self._client = client or httpx.AsyncClient(timeout=timeout_s)
+        self._owns_client = client is None
+        self._client = client or httpx.AsyncClient(
+            timeout=timeout_s, limits=httpx.Limits(keepalive_expiry=KEEPALIVE_S)
+        )
         self._retry_once = retry_once_on_parse_failure
+
+    def _headers(self) -> dict[str, str]:
+        return {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
+
+    async def warm(self) -> None:
+        """Open the connection now, while the owner is still speaking (D-046).
+
+        The session calls this on push-to-talk, so the handshake overlaps with
+        speech instead of being added to the turn. Failures are ignored here;
+        `complete` reports a real outage.
+        """
+        try:
+            await self._client.get(self._health_url, headers=self._headers())
+        except httpx.HTTPError:
+            pass
+
+    async def aclose(self) -> None:
+        if self._owns_client:
+            await self._client.aclose()
 
     def _body(self, messages: Sequence[Message], tools: Sequence[dict[str, Any]]) -> dict[str, Any]:
         payload: list[dict[str, str]] = [{"role": m.role, "content": m.content} for m in messages]
@@ -119,9 +147,8 @@ class EvonLLM:
         return body | self._extra_body
 
     async def _post(self, body: dict[str, Any]) -> dict[str, Any]:
-        headers = {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
         try:
-            response = await self._client.post(self._url, json=body, headers=headers)
+            response = await self._client.post(self._url, json=body, headers=self._headers())
         except httpx.HTTPError as e:
             raise EvonError(f"could not reach Evon at {self._url}: {e}") from e
         try:

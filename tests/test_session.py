@@ -443,3 +443,36 @@ def test_the_opening_ledger_is_pushed_on_connect():
 
     update = rec.first("ledger_update")
     assert update["customers"] == [{"name": "Sharma ji", "balance_paise": 15_000}]
+
+
+# --- warming Evon's connection (D-046) ---------------------------------------
+
+
+class WarmableLLM(FakeLLM):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.warmed = 0
+
+    async def warm(self) -> None:
+        self.warmed += 1
+
+
+def test_push_to_talk_warms_the_llm_connection_while_the_owner_speaks():
+    llm = WarmableLLM([LLMReply(text=REPLY), LLMReply(text=REPLY)])
+    session, rec, *_ = build(transcripts=(UTTERANCE, UTTERANCE), llm=llm)
+
+    async def two_turns():
+        await one_turn(session)
+        await asyncio.sleep(0)  # the fakes never yield; a real turn gives the warm-up time to finish
+        await one_turn(session)
+        await session.aclose()
+
+    asyncio.run(two_turns())
+    assert llm.warmed == 2
+    assert rec.first("agent_text")["text"] == REPLY
+
+
+def test_an_llm_without_warm_is_left_alone():
+    session, rec, *_ = build()
+    asyncio.run(one_turn(session))
+    assert rec.first("agent_text")["text"] == REPLY
