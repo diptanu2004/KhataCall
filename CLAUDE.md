@@ -87,6 +87,8 @@ uv run python -m scripts.smoke both             # 2 real API calls: Timbre TTS, 
 uv run python -m scripts.latency --dry-run      # count planned calls
 uv run python -m scripts.latency --n 5          # measure warm Gnani latency (10 real calls)
 uv run python -m scripts.wsclient               # drive /ws like the browser, no browser needed
+uv run python -m scripts.e2e_latency --dry-run  # end-to-end latency plan + estimated rupees
+uv run python -m scripts.e2e_latency --n 30     # replay 30 takes through /ws, all real models, p50/p90 per stage
 uv run python -m scripts.wsclient --wav a.wav --wav b.wav  # replay a multi-turn conversation
 uv run python -m scripts.usage                  # what we have spent, against the 5000 grant
 uv run python -m scripts.calibrate              # pick the mic, check the room is quiet enough
