@@ -175,11 +175,16 @@ async def layout_checks(tab: Tab, url: str) -> None:
     for width, height in [*SIZES, (1280, 800)]:
         mobile = width < 1000
         await tab.open(url, width, height, mobile=mobile)
+        # The ledger and the eval summary arrive after the page connects and lengthen it;
+        # measure once they are in, scrolling and measuring in the same frame.
+        await tab.wait_for("document.querySelectorAll('#customers .row').length > 0", 10)
         await tab.js("document.querySelectorAll('details').forEach(d => d.open = true); null")
+        await asyncio.sleep(0.3)
         top = await tab.js(LAYOUT)
-        await tab.js("scrollTo(0, document.documentElement.scrollHeight); null")
-        await asyncio.sleep(0.2)
-        bottom = await tab.js(LAYOUT)
+        bottom = await tab.js("""new Promise(done => {
+          scrollTo(0, document.documentElement.scrollHeight);
+          requestAnimationFrame(() => requestAnimationFrame(() => done(%s)));
+        })""" % LAYOUT)
         last = await tab.js("document.querySelector('main').lastElementChild.getBoundingClientRect().bottom")
         size = f"{width}x{height}"
         check(top["scrollW"] <= top["innerW"], f"{size}: no sideways scrolling", f"{top['scrollW']} vs {top['innerW']}")
