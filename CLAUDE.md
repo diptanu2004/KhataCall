@@ -43,7 +43,7 @@ If a task seems to need one of these, stop and ask.
    All Gnani-specific code lives in `app/adapters/` only.
 3. **Credits are finite.** Billing is **Rs 27 per hour of audio** (STT) and
    **Rs 27 per 10,000 characters** (TTS) — not per call (D-020). 1 credit = Rs 1,
-   4995 remain, and the whole project is projected at ~Rs 172. Any bulk path
+   4,906 remained on Nov 8 (about Rs 100 spent in all). Any bulk path
    must support `--dry-run` (prints planned calls **and estimated rupees**),
    `--max-calls N` as a runaway guard, and must cache results on disk keyed by
    (audio sha256, condition id, model id). Never re-spend on a cached result.
@@ -87,9 +87,11 @@ uv run python -m scripts.smoke both             # 2 real API calls: Timbre TTS, 
 uv run python -m scripts.latency --dry-run      # count planned calls
 uv run python -m scripts.latency --n 5          # measure warm Gnani latency (10 real calls)
 uv run python -m scripts.wsclient               # drive /ws like the browser, no browser needed
+uv run python -m scripts.wsclient --wav a.wav --wav b.wav  # replay a multi-turn conversation
 uv run python -m scripts.e2e_latency --dry-run  # end-to-end latency plan + estimated rupees
 uv run python -m scripts.e2e_latency --n 30     # replay 30 takes through /ws, all real models, p50/p90 per stage
-uv run python -m scripts.wsclient --wav a.wav --wav b.wav  # replay a multi-turn conversation
+uv run python -m scripts.ui_check               # the page in phone-sized Chrome, real touch events (fakes, no credits)
+uv run python -m scripts.ui_check --real        # the same through Chrome's mic to real Prisma/Evon/Timbre (~Rs 0.20)
 uv run python -m scripts.usage                  # what we have spent, against the 5000 grant
 uv run python -m scripts.calibrate              # pick the mic, check the room is quiet enough
 uv run python -m scripts.record                 # record the eval corpus (no API calls)
@@ -123,7 +125,8 @@ khatacall/
       session.py         # per-call state machine
     adapters/
       base.py            # STT / LLM / TTS Protocols
-      gnani_stt.py       # Prisma
+      gnani_stt.py       # Prisma REST (phone-line mode, the eval)
+      gnani_stt_stream.py  # Prisma realtime WebSocket (the live path)
       gnani_tts.py       # Timbre
       evon_llm.py        # Evon (hosted or self-hosted, see §7)
       fakes.py           # deterministic fakes
@@ -155,10 +158,16 @@ khatacall/
 
 ### Session state machine (half-duplex, push-to-talk)
 `IDLE → LISTENING → TRANSCRIBING → THINKING → [CONFIRMING] → SPEAKING → LISTENING`
-Push-to-talk first (reliable for the demo). STT runs on the buffered utterance
-via Prisma REST on release (DECISIONS.md D-003). Prisma's realtime API does
-report end of speech (a `processing` event from its VAD) but requires
-real-time frame cadence; switching to it is an M4 latency experiment.
+Push-to-talk. The live path streams to Prisma's realtime WebSocket while the
+owner speaks, opened on press (D-016); phone-line mode buffers the utterance,
+degrades it and sends it to Prisma REST, as the eval did (D-041). Evon's
+connection is warmed and Timbre's socket opened on press too (D-046). A press
+under 0.2 s is a tap, not speech, and is not transcribed (D-047).
+
+The page is built for a phone: the mic is docked at the bottom, one tap turns
+it on (phones start audio only from a tap), then hold to speak. Phones allow
+the microphone only on https (or localhost). `scripts/ui_check.py` checks all
+of this in phone-sized Chrome.
 
 ### WebSocket protocol (`app/protocol.py`)
 - Client → server: binary PCM16 mono frames (16 kHz unless docs say otherwise);
@@ -251,7 +260,7 @@ Mark tasks `[x]` as they are completed. `[human]` = Diptanu does this, not Claud
 - [x] `index.html`: push-to-talk, transcript, agent text, audio playback
 - [x] Per-stage latency timing, sent to the client
 - [x] ~~Write~~ **180** synthetic utterances in `scripts.csv` (drafted; review the phrasing)
-- [ ] [human] Calibrate the mic once: `uv run python -m scripts.calibrate` → **Mon Nov 2**, before recording
+- [x] ~~[human] Calibrate the mic once~~ Moot: the saved calibration held, and all 180 takes passed `check_corpus`
 - [x] Speaker a recorded: 60 takes, median SNR 64 dB, no problems (D-022)
 - [x] [human] Record the remaining 120 lines yourself (one speaker, D-034) — 180/180 on Nov 3
 - [x] Shop noise: 3 CC0 Indian street recordings from Freesound, 4.8 min (Delhi bazaar, Trivandrum market, flea market); `eval/noise/SOURCES.md` (D-033)
@@ -307,7 +316,7 @@ come from the same commit and the same cached transcripts.
 - [x] Dev set frozen: `eval/corpus/dev_ids.txt` (the 60 takes the fixes were designed from).
       Dev result: clean 70.0% → 78.3% correct, wrong 11.7% → 6.7%; no row made worse (D-042)
 - [ ] [human] Post #1, with the baseline chart as the hook
-- [ ] [human] Calibrate the mic, then start recording the 120 lines
+- [x] [human] ~~Calibrate the mic, then~~ start recording the 120 lines
 
 **Tue Nov 3**
 - [x] Fix 3, quantities with units ("paanch kilo") (D-031 #2) — D-043
@@ -316,7 +325,7 @@ come from the same commit and the same cached transcripts.
 - [x] Rank failure modes in DECISIONS.md: dev set, fixes off vs on — D-043
 - [x] [human] Finish the 120 lines; run `scripts.check_corpus` — 180/180, no problems (done Nov 3)
 - [x] STT on the 120 held-out takes started Nov 3 (1,440 calls, Rs 35.51 by dry run)
-- [ ] [human] Evening: start Evon on Kaggle, update `.env`
+- [x] [human] Evening: start Evon on Kaggle, update `.env`
 
 **Wed Nov 4**
 - [x] STT on the 120 held-out takes x 12 conditions — done Nov 3: Rs 35.75, 9 Prisma 504s re-fetched
@@ -324,7 +333,7 @@ come from the same commit and the same cached transcripts.
       — done Nov 3: `eval/results/m4_2026-11-03*` (D-044)
 - [x] The one extra fix: **fix 5, name check** — the customer Evon names must be one the owner said
       (held out: 36 wrong → caught, 0 made worse; harsh wrong 63.3% → 47.5%) — D-045
-- [ ] **Decision gate:** if the 120 are not recorded by Wed noon, do before/after on the 60 and say so
+- [x] ~~**Decision gate:** if the 120 are not recorded by Wed noon~~ Moot: all 120 were recorded Nov 3
 
 **Thu Nov 5**
 - [x] End-to-end latency with real Evon: replay takes through `/ws`, p50/p90 per stage
@@ -332,7 +341,7 @@ come from the same commit and the same cached transcripts.
 - [x] Latency fixes, half a day maximum. Measured first: prompt caching was already on, so a
       shorter prompt buys nothing. Built instead: Evon keep-alive + warm-up on press, Timbre socket
       pre-opened on press → request p50 **2.35 s**, p90 **3.20 s**; "haan" p50 0.80 s (D-046)
-- [ ] **FEATURE FREEZE** at the end of the day
+- [x] **FEATURE FREEZE** at the end of the day
 
 ### M5 — Package and ship (Fri Nov 6 – Mon Nov 9)
 **Fri Nov 6**
@@ -349,7 +358,10 @@ come from the same commit and the same cached transcripts.
 - [ ] [human] Main LinkedIn/X post, with the video
 - [ ] Interview prep notes from DECISIONS.md
 
-**Sun Nov 8 — Diwali. Nothing scheduled.**
+**Sun Nov 8 — Diwali.**
+- [x] Full audit + e2e run; UI rebuilt for phones (asked for: the owners will use a phone). Fixed a
+      confirmation-gate bypass, digit parsing ("1,500" read as Rs 501), a 15 s wait on taps and
+      silent holds, and the first press on a phone recording nothing (D-047)
 
 **Mon Nov 9**
 - [ ] [human] Submit: demo, written explanation, models used, post links; nominate post #1 and the main post

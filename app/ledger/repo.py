@@ -203,8 +203,9 @@ class Ledger:
             raise LedgerError("I do not have that item")
         new_qty = row["qty"] + qty_delta
         if new_qty < 0:
+            # Spoken to the owner as is, so in Hinglish.
             raise LedgerError(
-                f"only {row['qty']} {row['unit']} of {row['display_name']} left, so {-qty_delta} cannot go out"
+                f"{row['display_name']} ke sirf {row['qty']} {row['unit']} hain, {-qty_delta} nahi nikal sakte"
             )
 
         try:

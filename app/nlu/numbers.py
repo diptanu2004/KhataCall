@@ -44,7 +44,10 @@ __all__ = [
 MAX_RUPEES = 10_000_000
 
 _VOWELS = frozenset("aeiou")
-_TOKEN = re.compile(r"[a-z]+|\d+")
+# Digits keep their separators, so "1,500" is one token and not "1" then "500"
+# (which would read as 501), and "2.5" is not "2" then "5".
+_TOKEN = re.compile(r"[a-z]+|\d+(?:[.,]\d+)*")
+_DIGITS = re.compile(r"\d+(?:[.,]\d+)*")
 
 
 def normalise(word: str) -> str:
@@ -177,6 +180,37 @@ def _tokens(text: str) -> list[str]:
     return _TOKEN.findall(text.lower())
 
 
+def _digit_value(token: str) -> Fraction | None:
+    """ "1,500" and "1,50,000" (Western or Indian grouping), "350.50", "2.5". None if unclear.
+
+    A comma is only read as a thousands separator when the groups look like one:
+    "1,5" could be a European decimal, so it is refused rather than guessed.
+    """
+    whole, _, decimals = token.partition(".")
+    if "." in decimals or "," in decimals:
+        return None  # "1.2.3"
+    groups = whole.split(",")
+    if len(groups) > 1 and (len(groups[-1]) != 3 or not all(1 <= len(g) <= 3 for g in groups[:-1])):
+        return None
+    return Fraction("".join(groups) + (f".{decimals}" if decimals else ""))
+
+
+def _can_add(current: Fraction, value: Fraction, *, english: bool) -> bool:
+    """Is "current value" one number, or two numbers side by side?
+
+    "do sau paanch" is 205 and "twenty five" is 25, because the second word
+    fills a place the first left empty. "do teen" is Hindi for "two or three",
+    and "paanch das" for "five or ten": adding them would invent 5 and 15.
+    Hindi has a word for every number below a hundred, so only English joins
+    tens and units ("twenty five"); Hindi joins only hundreds and below.
+    """
+    if current.denominator != 1 or value.denominator != 1:
+        return False
+    if current >= 100 and current % 100 == 0 and value < 100:
+        return True
+    return english and current >= 20 and current % 10 == 0 and value < 10
+
+
 def _english_hundreds_idiom(tokens: list[str], ignored: frozenset[str] = IGNORED) -> Fraction | None:
     """"one fifty" is 150, not 51.
 
@@ -212,6 +246,7 @@ def parse_number(text: str, *, spelling_fixes: bool = True) -> Fraction | None:
     current: Fraction | None = None
     pending: Fraction | None = None  # a sava/saadhe/paune waiting for its number
     seen_value = False
+    english = True  # every unit word so far was English, so "twenty five" may join
 
     def base() -> Fraction:
         """What a multiplier applies to: the running number, or an implied one."""
@@ -219,11 +254,16 @@ def parse_number(text: str, *, spelling_fixes: bool = True) -> Fraction | None:
         return start + pending if pending is not None else start
 
     for token in tokens:
-        if token.isdigit():
-            value = Fraction(int(token))
+        if _DIGITS.fullmatch(token):
+            value = _digit_value(token)
+            if value is None:
+                return None
             if pending is not None:
                 value, pending = value + pending, None
+            if current is not None and not _can_add(current, value, english=False):
+                return None
             current = value if current is None else current + value
+            english = False
             seen_value = True
             continue
 
@@ -246,6 +286,9 @@ def parse_number(text: str, *, spelling_fixes: bool = True) -> Fraction | None:
             value = Fraction(units[word])
             if pending is not None:
                 value, pending = value + pending, None
+            english = english and word in ENGLISH_UNITS
+            if current is not None and not _can_add(current, value, english=english):
+                return None  # two numbers side by side: "do teen", "teen ke paanch"
             current = value if current is None else current + value
             seen_value = True
         elif word in SCALERS:

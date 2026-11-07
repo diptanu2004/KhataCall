@@ -22,7 +22,7 @@ class State(StrEnum):
     LISTENING = "LISTENING"
     TRANSCRIBING = "TRANSCRIBING"
     THINKING = "THINKING"
-    CONFIRMING = "CONFIRMING"  # unused until M2 adds the confirmation gate
+    CONFIRMING = "CONFIRMING"  # a write has been read back and waits for "haan"
     SPEAKING = "SPEAKING"
 
 
@@ -102,7 +102,7 @@ class LatencyMessage(BaseModel):
 
 
 class LedgerUpdateMessage(BaseModel):
-    """Emitted after a committed write. Populated in M2."""
+    """The whole book: sent when the page connects and after every committed write."""
 
     type: Literal["ledger_update"] = "ledger_update"
     customers: list[dict] = Field(default_factory=list)
@@ -132,7 +132,7 @@ class ErrorMessage(BaseModel):
 
 
 class NoticeMessage(BaseModel):
-    """Non-fatal information, e.g. a requested feature that is not built yet."""
+    """Non-fatal information for the page: phone-line settings, a press too short to be speech."""
 
     type: Literal["notice"] = "notice"
     message: str

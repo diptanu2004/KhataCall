@@ -44,7 +44,7 @@ def test_ws_turn_end_to_end_over_the_real_endpoint(fake_mode):
     with TestClient(app).websocket_connect("/ws") as ws:
         ws.receive()  # the opening ledger snapshot
         ws.send_text(json.dumps({"type": "start"}))
-        for _ in range(3):
+        for _ in range(20):  # 0.4 s: more than a tap
             ws.send_bytes(bytes(640))
         ws.send_text(json.dumps({"type": "stop"}))
 
@@ -113,7 +113,8 @@ def test_ws_confirmation_commits_and_pushes_a_ledger_update(fake_mode, tmp_path,
 
         # Turn one: the proposal and its read-back.
         ws.send_text(json.dumps({"type": "start"}))
-        ws.send_bytes(bytes(640))
+        for _ in range(20):
+            ws.send_bytes(bytes(640))
         ws.send_text(json.dumps({"type": "stop"}))
         first = drain(ws, "latency")
         assert any(m["type"] == "state" and m["state"] == "CONFIRMING" for m in first)
@@ -121,7 +122,8 @@ def test_ws_confirmation_commits_and_pushes_a_ledger_update(fake_mode, tmp_path,
 
         # Turn two: "haan".
         ws.send_text(json.dumps({"type": "start"}))
-        ws.send_bytes(bytes(640))
+        for _ in range(20):
+            ws.send_bytes(bytes(640))
         ws.send_text(json.dumps({"type": "stop"}))
         second = drain(ws, "latency")
 

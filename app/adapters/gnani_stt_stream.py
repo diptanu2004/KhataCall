@@ -48,6 +48,14 @@ FRAME_SAMPLES = FRAME_BYTES // 2  # 512, per the docs
 SUPPORTED_SAMPLE_RATES = (8000, 16000, 44100, 48000)
 VAD_MIN_SILENCE_RANGE_MS = (100, 2000)
 
+# Whether this server has been seen to send the undocumented `speech_start` event
+# (D-017). Measured Nov 8: every utterance got one before its transcript, and audio
+# with no speech got none and no transcript either, so the old path waited out the
+# whole timeout (D-047). The shortcut that relies on it stays off until the event
+# has actually been seen in this process, so if Prisma stops sending it, behaviour
+# falls back to waiting for the transcript.
+_speech_start_seen = False
+
 
 def frames(pcm: bytes) -> Iterator[bytes]:
     """Split PCM into exactly-1024-byte frames, zero-padding the last one."""
@@ -86,6 +94,7 @@ class LiveTranscription:
         burst_padding: bool,
         transcript_timeout_s: float,
         quiet_period_s: float,
+        no_speech_after_s: float = 0.0,
     ) -> None:
         self._ws = ws
         self._sample_rate = sample_rate
@@ -94,12 +103,15 @@ class LiveTranscription:
         self._burst_padding = burst_padding
         self._transcript_timeout_s = transcript_timeout_s
         self._quiet_period_s = quiet_period_s
+        self._no_speech_after_s = no_speech_after_s
         self._buffer = bytearray()
         self._t = _Timings(opened_at=time.perf_counter())
         self._error: str | None = None
         self._final_seen = asyncio.Event()
         self._segment_arrived = asyncio.Event()
+        self._speech_heard = asyncio.Event()  # speech_start, a transcript, or the socket ending
         self._receiver: asyncio.Task | None = None
+        self._metered = False
         self.frames_sent = 0
 
     # --- lifecycle, driven by PrismaStreamingSTT.live() ---
@@ -112,29 +124,44 @@ class LiveTranscription:
             self._receiver.cancel()
 
     async def _receive(self) -> None:
-        async for message in self._ws:
-            if isinstance(message, bytes):
-                continue
-            event = json.loads(message)
-            self._t.events.append(event)
-            match event.get("type"):
-                case "error":
-                    self._error = event.get("message", "transcription failed")
-                    self._final_seen.set()
-                    return
-                case "connected":
-                    self._t.connected_config.update(event.get("config") or {})
-                # The docs name this "processing"; the live server sends "speech_end".
-                case "processing" | "speech_end" if self._t.vad_end_at is None:
-                    self._t.vad_end_at = time.perf_counter()
-                case "transcript":
-                    self._t.segments.append(_Segment(event.get("text", ""), time.perf_counter(), event))
-                    self._segment_arrived.set()
-                    # is_final is undocumented but present; absent means treat as final.
-                    if event.get("is_final", True):
-                        self._final_seen.set()
-        # Socket closed: unblock any waiter instead of letting it time out.
-        self._final_seen.set()
+        global _speech_start_seen
+        try:
+            async for message in self._ws:
+                if isinstance(message, bytes):
+                    continue
+                event = json.loads(message)
+                self._t.events.append(event)
+                match event.get("type"):
+                    case "error":
+                        self._error = event.get("message", "transcription failed")
+                        return
+                    case "connected":
+                        self._t.connected_config.update(event.get("config") or {})
+                    case "speech_start":
+                        _speech_start_seen = True
+                        self._speech_heard.set()
+                    # The docs name this "processing"; the live server sends "speech_end".
+                    case "processing" | "speech_end" if self._t.vad_end_at is None:
+                        self._t.vad_end_at = time.perf_counter()
+                    case "transcript":
+                        self._t.segments.append(_Segment(event.get("text", ""), time.perf_counter(), event))
+                        self._segment_arrived.set()
+                        self._speech_heard.set()
+                        # is_final is undocumented but present; absent means treat as final.
+                        if event.get("is_final", True):
+                            self._final_seen.set()
+        finally:
+            # An error or a closed socket: unblock any waiter instead of letting it time out.
+            self._final_seen.set()
+            self._speech_heard.set()
+
+    def _meter(self) -> None:
+        """Billed per hour of audio. Counts everything streamed, padding included: the
+        server received it. Once per utterance, finished or not."""
+        if self._metered or not self.frames_sent:
+            return
+        self._metered = True
+        record_stt(self.frames_sent * FRAME_SAMPLES / self._sample_rate, model="prisma-v2.5-stream", note="stream")
 
     # --- sending ---
 
@@ -162,13 +189,6 @@ class LiveTranscription:
             await self._send_frame(bytes(self._buffer).ljust(FRAME_BYTES, b"\0"))
             self._buffer.clear()
         self._t.speech_end_at = time.perf_counter()
-        # Billed per hour of audio. Count everything streamed, padding included: the
-        # server received it. Metered here so a later timeout still records the spend.
-        record_stt(
-            self.frames_sent * FRAME_SAMPLES / self._sample_rate,
-            model="prisma-v2.5-stream",
-            note="stream",
-        )
 
         padding = bytes(2 * (self._sample_rate * self._padding_ms // 1000))
         interval = FRAME_SAMPLES / self._sample_rate
@@ -181,6 +201,15 @@ class LiveTranscription:
                 next_send += interval
                 if (delay := next_send - time.perf_counter()) > 0:
                     await asyncio.sleep(delay)
+        # Metered here, before any wait, so a later timeout still records the spend.
+        self._meter()
+
+        if self._no_speech_after_s and _speech_start_seen:
+            try:
+                await asyncio.wait_for(self._speech_heard.wait(), timeout=self._no_speech_after_s)
+            except TimeoutError:
+                # Prisma's VAD never heard speech, so no transcript is coming (D-047).
+                return Transcript(text="", latency_ms=None, raw={"no_speech": True, "frames_sent": self.frames_sent})
 
         try:
             await asyncio.wait_for(self._final_seen.wait(), timeout=self._transcript_timeout_s)
@@ -263,6 +292,8 @@ class PrismaStreamingSTT:
         # Silence required after the last segment before the utterance is declared done.
         # Guards against the VAD splitting a sentence; see LiveTranscription._wait_for_quiet.
         quiet_period_s: float = 0.2,
+        # With no `speech_start` this long after the last frame, nobody spoke (D-047).
+        no_speech_after_s: float = 1.5,
         pace_realtime: bool = True,
         connect: Callable[..., Any] = websockets.connect,
     ) -> None:
@@ -279,6 +310,7 @@ class PrismaStreamingSTT:
         self._burst_padding = burst_padding
         self._transcript_timeout_s = transcript_timeout_s
         self._quiet_period_s = quiet_period_s
+        self._no_speech_after_s = no_speech_after_s
         self._pace_realtime = pace_realtime
         self._connect = connect
 
@@ -308,12 +340,14 @@ class PrismaStreamingSTT:
                 burst_padding=self._burst_padding,
                 transcript_timeout_s=self._transcript_timeout_s,
                 quiet_period_s=self._quiet_period_s,
+                no_speech_after_s=self._no_speech_after_s,
             )
             session._start_receiver()
             try:
                 yield session
             finally:
                 session._stop_receiver()
+                session._meter()  # a turn abandoned before finish() still sent audio
 
     async def transcribe(self, audio: AudioClip, *, language: str) -> Transcript:
         """Transcribe a complete clip, pacing frames as the protocol requires."""

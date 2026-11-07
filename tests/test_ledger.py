@@ -161,7 +161,7 @@ def test_stock_arrives_and_leaves(ledger, maggi):
 
 def test_stock_cannot_go_negative(ledger, maggi):
     ledger.apply_movement(maggi.id, 3)
-    with pytest.raises(LedgerError, match="only 3 packet"):
+    with pytest.raises(LedgerError, match="sirf 3 packet"):
         ledger.apply_movement(maggi.id, -10)
     assert ledger.find_item("Maggi").qty == 3, "the failed movement must leave no trace"
 

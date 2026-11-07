@@ -350,3 +350,45 @@ def test_every_amount_form_in_the_corpus(spoken, rupees_expected):
     """Each of these appears in eval/corpus/scripts.csv. The eval cannot score
     better than this parser, so the parser is checked against the corpus first."""
     assert rupees(spoken) == rupees_expected, spoken
+
+
+# --- digits with separators, and numbers side by side (D-047) -------------------
+
+
+@pytest.mark.parametrize(
+    "spoken,paise",
+    [
+        ("1,500", 150_000),  # was 501: "1" then "500"
+        ("1,50,000", 15_000_000),  # Indian grouping
+        ("10,000", 1_000_000),  # was 10
+        ("2.5 hazaar", 250_000),  # was 7,000
+        ("350.50", 35_050),  # was 400
+        ("Rs. 1,200", 120_000),
+        ("2 hazaar 500", 250_000),
+    ],
+)
+def test_digits_keep_their_separators(spoken, paise):
+    assert parse_amount_paise(spoken) == paise
+
+
+@pytest.mark.parametrize("spoken", ["1,5", "1.2.3", "1 50"])
+def test_digit_forms_that_could_mean_two_things_are_refused(spoken):
+    assert parse_amount_paise(spoken) is None
+
+
+@pytest.mark.parametrize(
+    "spoken",
+    ["do teen", "paanch das", "teen ke paanch", "das bees", "ten five", "dedh sau pachaas", "barah sau pachas untalis"],
+)
+def test_two_numbers_side_by_side_are_not_added(spoken):
+    """ "do teen" is "two or three": adding them would invent 5 (D-044, D-047)."""
+    assert parse_number(spoken) is None
+
+
+@pytest.mark.parametrize(
+    "spoken,value",
+    [("do sau paanch", 205), ("ek sau bees", 120), ("twenty five", 25), ("one hundred and fifty", 150),
+     ("teen sau rupaye pachaas", 350), ("do hazaar paanch", 2005), ("sau pachaas", 150)],
+)
+def test_numbers_that_fill_an_empty_place_still_join(spoken, value):
+    assert parse_number(spoken) == value

@@ -1319,3 +1319,87 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
     its own `server_latency_ms` reports the same 10 s, so it is Gnani-side. The
     UI shows every turn's latency, so a stall in the demo is visible, not hidden.
 
+
+## D-047 — Full audit before submission: two money bugs, a broken first press on phones, and a UI for phones
+- **Date:** 2026-11-08 · **Status:** Fixed, tested, measured. Asked for: a full audit, a full
+  e2e run, and a UI that works on a phone, "since our target audience will be using phone".
+- **Method.** Every suspected bug was confirmed by running it before being fixed (a probe
+  script, then a regression test). The phone UI was driven in headless Chrome with real
+  touch events through the DevTools protocol, now `scripts/ui_check.py`, because the bug
+  that mattered most only shows with real input.
+- **Confirmation gate bypass (money).** While a write waited for "haan", any reply with a
+  yes word in it committed: "ji" counted as yes, so "Gupta ji ka do sau likho" committed
+  *Sharma ji's* pending Rs 150, as did "sharma ji", "sahi amount do sau hai" (a correction)
+  and "sau ya do sau". Now a yes may contain nothing but agreement and filler ("haan ji
+  likh do", "theek hai bhai"); "ji" alone is still a yes, and "ji nahi" is now a no.
+  Anything else is asked again once, then cancelled, as §5 always said.
+- **Digits with separators (money).** The tokenizer split "1,500" into 1 and 500 and
+  added them: Rs 501. "10,000" read as Rs 10, "2.5 hazaar" as Rs 7,000 and "350.50" as
+  Rs 400. Not seen in the eval (Prisma writes numbers as words), but the prompt tells Evon
+  to keep digits as spoken. Digits now keep their separators; Western and Indian grouping
+  ("1,50,000") both parse; "1,5" (a European decimal?) is refused.
+- **Numbers side by side were added (money).** "do teen" (two or three) read as 5,
+  "paanch das" as 15, "barah sau pachas untalis" as 1,289. A number now joins the one
+  before it only to fill an empty place ("do sau paanch" 205); tens and units join only
+  in English ("twenty five"), since Hindi has a word for every number below 100. Re-scored
+  from cache (no calls): 7 rows before fixes and 8 after moved from wrong to caught, none
+  moved the other way, normalised WER moved 0.1 points. `m4_2026-11-08` replaces
+  `m4_2026-11-03` as the current figures: held out, after fixes, wrong on mob 6.7% -> 5.8%,
+  mob_snr5 14.2% -> 12.5%, mob_snr0 35.8% -> 35.0%; correct unchanged everywhere.
+- **The first press on a phone recorded nothing, then left the mic on.** On a phone the
+  touch that begins a hold is not a user gesture, so the AudioContext stayed suspended for
+  the whole hold; it resumed when the finger lifted, and *then* the page started streaming
+  (and Prisma's socket stayed open) until the next tap. The owner's first sentence was
+  lost. Now one tap turns the mic on, and press/release are synchronous: nothing is awaited
+  between the finger going down and "start" being sent.
+- **Taps and silent holds waited 15 s.** Prisma sends no transcript for audio with no
+  speech, so the session waited out its whole timeout before "Maaf kijiye" (measured:
+  15.3-17.1 s). A press under 0.2 s is now not transcribed at all (a hint, no TTS). For a
+  longer silent hold, the undocumented `speech_start` event (D-017) decides: measured, it
+  arrived for 5 of 5 utterances and never for silence. As D-017 requires a fallback, the
+  shortcut only switches on once this process has seen the event. Silent hold: 15.5 s ->
+  1.97 s to a spoken re-ask.
+- **A pre-opened Timbre socket died once while waiting** ("no close frame received or
+  sent"), in the same minute as a Windows network error. My first reading, an idle timeout
+  at ~15 s, was wrong: sockets idle 6, 9, 12 and 20 s all synthesised normally. Now a spare
+  that fails before any audio is retried once on a fresh socket (metered), audio already
+  played is never replayed, and a spare older than 20 s, the longest tried, is replaced.
+- **Smaller.** A stop the server ignored sent nothing, so the page could wait forever (it
+  now gets the state). The audio of a turn abandoned before `finish()` was not metered.
+  `EvonLLM` had two `aclose` methods, the second hiding the one added in D-046. The stock
+  refusal was English spoken by a Hinglish voice. A single near-miss name was answered
+  "Tiwari didi - kaunse?", a choice of one (now "Tiwari didi? Naam phir se boliye.").
+  New customers were stored as Evon typed them ("mishra ji"); now "Mishra ji". Read-backs
+  group in lakhs ("1,50,000"). The committed latency results carried a tunnel hostname.
+- **The UI, rebuilt for phones.**
+  - The mic is docked at the bottom, on screen at every scroll position.
+  - One tap turns the mic on, then hold to speak.
+  - Pointer capture, so a finger sliding off the button does not end the sentence.
+  - No long-press menu or text selection; a vibration on press, since the finger hides the button.
+  - The mic turns off when the app goes to the background, and a press is capped at 30 s.
+  - Errors appear next to the button, not only in the log.
+  - A plain http:// address gets a clear "needs https" message.
+  - Selects are 16 px (iOS zooms on smaller) and touch targets 44 px.
+  - Settings, latency and the log fold away on a phone.
+  - Capture is averaged down to 16 kHz instead of taking every third sample: a 12 kHz
+    tone now comes through at -9.5 dB where it used to fold into the speech band at 0 dB.
+- **Verified.**
+  - `ui_check`, with fakes: no sideways scroll and the mic on screen at 7 sizes from 320 px
+    to 1280 px, plus the whole tap / hold / "haan" / slide / tap / background flow.
+  - `ui_check --real`: take 001 through Chrome's mic was heard exactly ("sharma ji ka dedh
+    sau udhar likho"), read back, and "haan ji" committed: 2.01 s to first audio.
+  - `e2e_latency --n 30`, final code: request p50 **2030 ms**, p90 **2272 ms**; "haan" p50
+    595 ms, p90 712 ms (Nov 5 after D-046: 2354 / 3198 and 796 / 1165). No errors, no
+    Timbre retries. One Prisma 10 s stall in 50 turns, as before.
+  - Spend today Rs 8.89.
+- **Not verified, and why.**
+  - iOS Safari: there is no WebKit here. It should be tried on a real iPhone, including
+    whether replies get quieter while the mic is open (iOS may route audio to the earpiece).
+  - A real phone needs an https address: `cloudflared tunnel --url http://localhost:8000`,
+    as Evon already uses. That URL is public with no auth, so anyone holding it can spend
+    credits and edit the one shared ledger (auth and tenancy are out of scope, §1).
+- **Known limitations, left as they are.**
+  - Stock items have no fuzzy match: "lace" (Lays) is read back as a new item, and the owner
+    must say no.
+  - "Sharmila" scores 85.7 against "Sharma ji", a confident match under D-023's thresholds.
+    The read-back names Sharma ji, so the owner can refuse it.

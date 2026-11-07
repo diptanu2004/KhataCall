@@ -307,3 +307,66 @@ def test_live_push_raises_after_a_server_error():
 
     with pytest.raises(GnaniAPIError, match="bad sample rate"):
         asyncio.run(run())
+
+
+# --- no speech, no wait (D-047) ------------------------------------------------
+
+
+class OpenStream(FakeStream):
+    """Like the real server with no speech to report: `connected`, then silence, socket open."""
+
+    async def _iter(self):
+        async for event in super()._iter():
+            yield event
+        await asyncio.Event().wait()
+
+
+def build_open(events: list[dict], **kwargs) -> PrismaStreamingSTT:
+    stream = OpenStream(events)
+    kwargs.update(pace_realtime=False, quiet_period_s=0, padding_margin_ms=0, min_silence_ms=100)
+    return PrismaStreamingSTT("test-key", connect=lambda url, **kw: stream, **kwargs)
+
+
+def test_with_speech_start_known_a_silent_hold_returns_empty_quickly(monkeypatch):
+    """Prisma sends nothing for audio with no speech; waiting for a transcript took 15 s."""
+    import app.adapters.gnani_stt_stream as stream_module
+
+    monkeypatch.setattr(stream_module, "_speech_start_seen", True)
+    stt = build_open([CONNECTED], no_speech_after_s=0.05, transcript_timeout_s=5)
+    transcript = run(stt)
+    assert transcript.text == "" and transcript.raw["no_speech"]
+
+
+def test_until_speech_start_has_been_seen_the_adapter_waits_for_the_transcript(monkeypatch):
+    """The event is undocumented (D-017), so the shortcut needs evidence the server sends it."""
+    import app.adapters.gnani_stt_stream as stream_module
+
+    monkeypatch.setattr(stream_module, "_speech_start_seen", False)
+    stt = build_open([CONNECTED], no_speech_after_s=0.05, transcript_timeout_s=0.2)
+    with pytest.raises(GnaniAPIError, match="no transcript"):
+        run(stt)
+
+
+def test_speech_start_is_remembered_and_speech_still_gets_its_transcript(monkeypatch):
+    import app.adapters.gnani_stt_stream as stream_module
+
+    monkeypatch.setattr(stream_module, "_speech_start_seen", False)
+    stt, _, _ = build([CONNECTED, {"type": "speech_start"}, transcript_event("haan ji")], no_speech_after_s=0.05)
+    assert run(stt).text == "haan ji"
+    assert stream_module._speech_start_seen
+
+
+def test_an_abandoned_utterance_is_still_metered(monkeypatch):
+    """A tap releases the socket without finish(); the frames it sent were still received."""
+    import app.adapters.gnani_stt_stream as stream_module
+
+    metered = []
+    monkeypatch.setattr(stream_module, "record_stt", lambda seconds, **kw: metered.append(seconds))
+    stt, _, _ = build([CONNECTED])
+
+    async def tap():
+        async with stt.live(language="en-IN", sample_rate=16_000) as session:
+            await session.push(bytes(FRAME_BYTES * 3))
+
+    asyncio.run(tap())
+    assert metered == [3 * 512 / 16_000]

@@ -294,3 +294,65 @@ def test_an_unused_prepared_socket_is_closed():
 
     asyncio.run(run())
     assert connect.exited == [0]
+
+
+class DyingSocket(TrackedSocket):
+    """Accepts the request, then ends before `complete`: what a socket that died while waiting did (D-047)."""
+
+    def __aiter__(self):
+        async def gone():
+            raise websockets.ConnectionClosed(None, None)
+            yield  # pragma: no cover
+
+        return gone()
+
+
+def test_a_prepared_socket_that_dies_before_any_audio_is_retried_on_a_fresh_one():
+    connect = CountingConnect([audio_event(0, b"\x01\x02"), COMPLETE])
+    first = DyingSocket(connect.messages, connect.exited, 0, closed=False)
+    connect.sockets.append(first)
+
+    tts = TimbreTTS("test-key", connect=lambda url, **kw: first if not tts._spare_used else connect(url, **kw))
+    tts._spare_used = False
+
+    async def run():
+        await tts.prepare()
+        await asyncio.sleep(0)
+        tts._spare_used = True
+        return [c async for c in tts.synthesize("Likh diya.", language="hi-en", voice="Poorvi")]
+
+    assert asyncio.run(run()) == [b"\x01\x02"]
+    assert len(connect.sockets) == 2 and connect.exited == [0, 1]
+
+
+def test_audio_already_played_is_never_replayed_by_a_retry():
+    """A socket that dies mid-reply raises: a retry would say the first half twice."""
+    connect = CountingConnect([audio_event(0, b"\x01\x02")])  # audio, then the socket just ends
+    tts = TimbreTTS("test-key", connect=connect)
+
+    async def run():
+        await tts.prepare()
+        return [c async for c in tts.synthesize("Likh diya.", language="hi-en", voice="Poorvi")]
+
+    with pytest.raises(GnaniAPIError, match="before sending 'complete'"):
+        asyncio.run(run())
+    assert len(connect.sockets) == 1
+
+
+def test_a_stale_prepared_socket_is_closed_and_a_fresh_one_used(monkeypatch):
+    import app.adapters.gnani_tts as tts_module
+
+    connect = CountingConnect([audio_event(0, b"\x01\x02"), COMPLETE])
+    tts = TimbreTTS("test-key", connect=connect)
+
+    async def run():
+        await tts.prepare()
+        await asyncio.sleep(0)
+        tts._spare_opened_at -= tts_module.SPARE_MAX_AGE_S + 1  # it has been waiting too long
+        chunks = [c async for c in tts.synthesize("Likh diya.", language="hi-en", voice="Poorvi")]
+        await tts.aclose()
+        return chunks
+
+    assert asyncio.run(run()) == [b"\x01\x02"]
+    assert len(connect.sockets) == 2 and sorted(connect.exited) == [0, 1]
+    assert connect.sockets[0].sent == []  # the stale one carried nothing

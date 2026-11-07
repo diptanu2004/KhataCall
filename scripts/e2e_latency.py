@@ -273,7 +273,6 @@ async def run(args) -> int:
             {
                 "measured_at": datetime.now(UTC).isoformat(timespec="seconds"),
                 "mode": mode,
-                "evon_base_url_host": httpx.URL(settings.evon_base_url).host,
                 "summary": summary,
                 "rows": rows,
             },

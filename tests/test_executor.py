@@ -337,3 +337,52 @@ def test_a_none_string_threshold_lists_everything_low(seeded):
     """Real Evon sent threshold_spoken="None"; that must not trigger "kitne se kam?"."""
     reply = Executor(seeded).handle(call("list_low_stock", threshold_spoken="None"))
     assert "Kitne se kam" not in reply.speech
+
+
+# --- a yes must be only a yes (D-047) ------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "Gupta ji ka do sau likho",  # a new instruction naming someone else
+        "sharma ji",  # a fragment: "ji" alone is a yes, a name with it is not
+        "sahi amount do sau hai",  # a correction
+        "ok gupta ji ka paanch sau",
+    ],
+)
+def test_a_sentence_containing_a_yes_word_does_not_commit(agent, seeded, reply):
+    sharma = seeded.find_customer("Sharma ji")
+    agent.handle(credit())
+    assert agent.handle_user_text(reply).outcome is Outcome.CONFIRMING  # asked again
+    assert seeded.balance_paise(sharma.id) == 100_000
+
+
+@pytest.mark.parametrize("reply", ["ji", "haan ji likh do", "theek hai bhai", "ji haan kar do", "ok"])
+def test_plain_agreement_commits(agent, reply):
+    agent.handle(credit())
+    assert agent.handle_user_text(reply).outcome is Outcome.COMMITTED
+
+
+@pytest.mark.parametrize("reply", ["ji nahi", "nahi ji"])
+def test_a_polite_no_cancels(agent, reply):
+    agent.handle(credit())
+    assert agent.handle_user_text(reply).outcome is Outcome.CANCELLED
+
+
+def test_large_amounts_are_read_back_in_lakhs(agent):
+    reply = agent.handle(credit(amount="dedh lakh"))
+    assert "1,50,000 rupaye" in reply.speech
+
+
+def test_a_new_customer_is_written_with_a_capital_whatever_evon_typed(agent, seeded):
+    agent.handle(credit(customer="mishra ji"))
+    agent.handle_user_text("haan")
+    assert "Mishra ji" in seeded.customer_names()
+
+
+def test_one_near_miss_asks_for_the_name_rather_than_offering_a_choice_of_one(agent):
+    """ "Shrama" is close to Sharma ji but not close enough to assume (D-023)."""
+    reply = agent.handle(credit(customer="Shrama"))
+    assert reply.speech == "Sharma ji? Naam phir se boliye."
+    assert not agent.has_pending

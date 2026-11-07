@@ -66,7 +66,8 @@ def build(
     return session, rec, stt, llm, tts
 
 
-async def one_turn(session: Session, *, audio_chunks: int = 3) -> None:
+# 20 browser chunks of 20 ms: 0.4 s, comfortably more than a tap (MIN_UTTERANCE_S).
+async def one_turn(session: Session, *, audio_chunks: int = 20) -> None:
     await session.handle_json({"type": "start"})
     for _ in range(audio_chunks):
         await session.handle_audio(bytes(640))
@@ -91,8 +92,8 @@ def test_full_turn_produces_transcript_reply_and_audio():
 
 def test_microphone_audio_reaches_the_stt_session():
     session, _, stt, _, _ = build()
-    asyncio.run(one_turn(session, audio_chunks=5))
-    assert len(stt.sessions[0].pushed) == 5 * 640
+    asyncio.run(one_turn(session, audio_chunks=15))
+    assert len(stt.sessions[0].pushed) == 15 * 640
     assert stt.sessions[0].finished
 
 
@@ -290,11 +291,24 @@ def test_audio_outside_a_turn_is_ignored():
     assert stt.sessions == []
 
 
-def test_stop_without_start_is_ignored():
+def test_stop_without_start_is_ignored_but_the_page_is_told_where_things_stand():
+    """A start that failed (Prisma unreachable) leaves nothing to stop. The page still
+    gets a state, so it does not wait for a turn that is never coming (D-047)."""
     session, rec, _, llm, _ = build()
     asyncio.run(session.handle_json({"type": "stop"}))
-    assert rec.messages == []
+    assert rec.types() == ["state"]
     assert llm.calls == []
+
+
+def test_a_tap_is_not_transcribed_and_costs_nothing():
+    """Prisma waits 15 s for speech that never comes; a tap gets a hint instead (D-047)."""
+    session, rec, stt, llm, tts = build()
+    asyncio.run(one_turn(session, audio_chunks=3))  # 60 ms
+
+    assert stt.sessions[0].finished is False
+    assert llm.calls == [] and tts.calls == []
+    assert "hold the button" in rec.first("notice")["message"]
+    assert rec.states() == ["LISTENING", "LISTENING"]
 
 
 def test_start_during_a_turn_is_ignored():
@@ -374,7 +388,8 @@ def test_a_tap_in_phone_mode_is_not_sent_to_prisma():
     asyncio.run(phone_turn(session, speech_chunks(0.05)))
 
     assert batch.calls == []
-    assert rec.first("agent_text")["text"] == COULD_NOT_HEAR
+    assert any("hold the button" in m["message"] for m in rec.all("notice"))
+    assert not rec.all("agent_text")
 
 
 def test_without_imported_noise_the_line_runs_noise_free():

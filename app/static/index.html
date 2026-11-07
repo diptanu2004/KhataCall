@@ -2,167 +2,235 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#faf7f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1917" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:,">
 <title>KhataCall</title>
 <style>
   :root {
-    --bg: #faf7f2; --panel: #fff; --ink: #1c1917; --muted: #78716c;
+    --bg: #faf7f2; --panel: #fff; --ink: #1c1917; --muted: #6b6560;
     --line: #e7e1d8; --accent: #b45309; --accent-ink: #fff;
-    --ok: #15803d; --warn: #b91c1c;
-    --radius: 10px;
+    --ok: #15803d; --warn: #b91c1c; --rec: #dc2626;
+    --radius: 12px;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #1c1917; --panel: #262220; --ink: #f5f5f4; --muted: #a8a29e;
       --line: #3a3330; --accent: #f59e0b; --accent-ink: #1c1917;
-      --ok: #4ade80; --warn: #f87171;
+      --ok: #4ade80; --warn: #f87171; --rec: #ef4444;
     }
   }
   * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
   body {
-    margin: 0; padding: 24px 16px 40px; background: var(--bg); color: var(--ink);
-    font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    touch-action: manipulation;  /* no double-tap zoom delay */
   }
-  .wrap { max-width: 760px; margin: 0 auto; }
-  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
-  h1 { font-size: 1.4rem; margin: 0; letter-spacing: -0.01em; }
+
+  /* One column, the mic docked at the bottom where a thumb reaches it at any scroll. */
+  .app { max-width: 760px; margin: 0 auto; min-height: 100vh; min-height: 100dvh;
+         display: flex; flex-direction: column; }
+  .top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+         padding: max(14px, env(safe-area-inset-top)) 16px 0; }
+  h1 { font-size: 1.3rem; margin: 0; letter-spacing: -0.01em; }
   .tag { font-size: .75rem; color: var(--muted); border: 1px solid var(--line);
          padding: 2px 8px; border-radius: 999px; }
-  .sub { color: var(--muted); font-size: .9rem; margin: 0 0 20px; }
-
-  .mic {
-    width: 100%; padding: 22px; font-size: 1.05rem; font-weight: 600; font-family: inherit;
-    color: var(--accent-ink); background: var(--accent); border: 0;
-    border-radius: var(--radius); cursor: pointer; touch-action: none;
-    transition: transform .06s ease, filter .15s ease;
-  }
-  .mic:disabled { background: var(--line); color: var(--muted); cursor: default; }
-  .mic.held { transform: scale(.985); filter: brightness(.9); }
-  .hint { text-align: center; color: var(--muted); font-size: .8rem; margin: 8px 0 20px; }
-
-  .status { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; font-size: .9rem; }
-  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
-  .dot.live { background: var(--ok); }
-  .dot.busy { background: var(--accent); animation: pulse 1s ease-in-out infinite; }
-  .dot.bad { background: var(--warn); }
-  @keyframes pulse { 50% { opacity: .35; } }
+  main { flex: 1; padding: 6px 16px 16px; }
+  .sub { color: var(--muted); font-size: .9rem; margin: 0 0 12px; }
 
   .panel { background: var(--panel); border: 1px solid var(--line);
-           border-radius: var(--radius); padding: 14px 16px; margin-bottom: 14px; }
-  .panel h2 { font-size: .72rem; text-transform: uppercase; letter-spacing: .07em;
-              color: var(--muted); margin: 0 0 8px; font-weight: 600; }
-  .turn { padding: 10px 0; border-top: 1px solid var(--line); }
+           border-radius: var(--radius); padding: 12px 16px; margin-bottom: 12px; }
+  .panel h2, .fold > summary {
+    font-size: .72rem; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--muted); margin: 0 0 6px; font-weight: 600;
+  }
+  .fold { padding-top: 0; padding-bottom: 0; }
+  .fold > summary { list-style: none; cursor: pointer; min-height: 44px; margin: 0;
+                    display: flex; align-items: center; gap: 8px; }
+  .fold > summary::-webkit-details-marker { display: none; }
+  .fold > summary::after { content: "▾"; margin-left: auto; font-size: .9rem; transition: transform .15s; }
+  .fold:not([open]) > summary::after { transform: rotate(-90deg); }
+  .fold[open] { padding-bottom: 12px; }
+  .sum { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--ink); }
+
+  .turn { padding: 8px 0; border-top: 1px solid var(--line); }
   .turn:first-of-type { border-top: 0; }
   .who { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
-  .said { margin: 2px 0 0; }
-  .empty { color: var(--muted); font-style: italic; }
+  .said { margin: 2px 0 0; overflow-wrap: anywhere; }
+  .empty { color: var(--muted); font-style: italic; margin: 4px 0; }
 
-  .lat { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 10px; }
-  .lat div { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  .cols { display: grid; gap: 0 12px; grid-template-columns: 1fr; }
+  @media (min-width: 620px) { .cols { grid-template-columns: 1fr 1fr; } }
+  .rows { display: flex; flex-direction: column; }
+  .row { display: flex; justify-content: space-between; align-items: baseline;
+         gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; }
+  .row .n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .v { font-variant-numeric: tabular-nums; font-weight: 600; flex: none; }
+  .row.settled .v { color: var(--ok); font-weight: 500; }
+  .row.lowstock .v { color: var(--warn); }
+  .row.changed { animation: flash 1.4s ease-out; }
+  @keyframes flash { from { background: color-mix(in srgb, var(--accent) 30%, transparent); } }
+  .tagline { font-size: .72rem; color: var(--muted); margin-left: 6px; text-transform: none; letter-spacing: 0; }
+
+  .switch { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; padding: 4px 0 10px; }
+  .switch input { width: 24px; height: 24px; margin: 0; flex: none; accent-color: var(--accent); }
+  .switch small { display: block; color: var(--muted); font-size: .82rem; }
+  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .opts[hidden] { display: none; }
+  .opts label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; color: var(--muted); }
+  /* 16px or more, or iOS zooms the page in when a select is focused. */
+  select { font: inherit; font-size: 16px; min-height: 44px; width: 100%; padding: 6px 8px;
+           border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+  .measured { grid-column: 1 / -1; margin: 0; font-size: .85rem; color: var(--muted); }
+  .measured b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .hear { margin-top: 6px; font: inherit; font-size: .85rem; min-height: 40px; padding: 6px 12px;
+          border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; }
+
+  .lat { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+  .lat div { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
   .lat .k { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
   .lat .v { font-variant-numeric: tabular-nums; font-size: 1.05rem; font-weight: 600; }
   .lat .total { outline: 1px solid var(--accent); }
 
-  .cols { display: grid; gap: 14px; grid-template-columns: 1fr; }
-  @media (min-width: 620px) { .cols { grid-template-columns: 1fr 1fr; } }
-  .rows { display: flex; flex-direction: column; gap: 2px; }
-  .row { display: flex; justify-content: space-between; align-items: baseline;
-         gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--line); }
-  .row:last-child { border-bottom: 0; }
-  .row .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .row .v { font-variant-numeric: tabular-nums; font-weight: 600; flex: none; }
-  .row.settled .v { color: var(--ok); font-weight: 500; }
-  .row.lowstock .v { color: var(--warn); }
-  .row.changed { animation: flash 1.1s ease-out; }
-  @keyframes flash { from { background: color-mix(in srgb, var(--accent) 28%, transparent); } }
-  .tagline { font-size: .72rem; color: var(--muted); margin-left: 6px; }
-
-  .phone { display: flex; flex-direction: column; gap: 10px; }
-  .phone .switch { display: flex; align-items: center; gap: 10px; font-weight: 600; cursor: pointer; }
-  .phone .switch input { width: 18px; height: 18px; accent-color: var(--accent); }
-  .phone .opts { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; font-size: .9rem; }
-  .phone .opts[hidden] { display: none; }
-  .phone select { font: inherit; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line);
-                  background: var(--panel); color: var(--ink); }
-  .measured { font-size: .82rem; color: var(--muted); }
-  .measured b { color: var(--ink); font-variant-numeric: tabular-nums; }
-  .hear { margin-top: 6px; font: inherit; font-size: .8rem; padding: 4px 10px; border-radius: 999px;
-          border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; }
-  .hear:hover { border-color: var(--accent); }
-
   .log { font: .78rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
-         color: var(--muted); max-height: 140px; overflow-y: auto; white-space: pre-wrap; }
+         color: var(--muted); max-height: 160px; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
   .log .err { color: var(--warn); }
+
+  /* --- the dock --- */
+  .dock { position: sticky; bottom: 0; z-index: 2; background: var(--bg);
+          border-top: 1px solid var(--line); box-shadow: 0 -6px 16px rgb(0 0 0 / .06);
+          padding: 8px 16px max(12px, env(safe-area-inset-bottom)); }
+  .status { display: flex; align-items: center; gap: 8px; font-size: .9rem; min-height: 24px; margin-bottom: 6px; }
+  .status .line { margin-left: auto; font-size: .75rem; color: var(--accent); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.live { background: var(--ok); }
+  .dot.busy { background: var(--accent); animation: pulse 1s ease-in-out infinite; }
+  .dot.rec { background: var(--rec); animation: pulse .8s ease-in-out infinite; }
+  .dot.bad { background: var(--warn); }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .alert { margin: 0 0 8px; padding: 8px 12px; border-radius: 8px; font-size: .88rem;
+           color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+  .alert[hidden] { display: none; }
+
+  .mic {
+    display: block; width: 100%; min-height: 64px; padding: 16px; border: 0; border-radius: 14px;
+    font: inherit; font-size: 1.1rem; font-weight: 600; cursor: pointer;
+    color: var(--accent-ink); background: var(--accent);
+    /* A long press must hold the button, not select its text or open a menu. */
+    touch-action: none; user-select: none; -webkit-user-select: none;
+    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+    transition: transform .06s ease, background .15s ease, opacity .15s ease;
+  }
+  .mic.setup { background: var(--panel); color: var(--ink); box-shadow: inset 0 0 0 2px var(--accent); }
+  .mic.held { background: var(--rec); color: #fff; transform: scale(.985); }
+  .mic.busy { opacity: .55; }
+  .mic:disabled { background: var(--line); color: var(--muted); box-shadow: none; cursor: default; }
+  .mic:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  .hint { text-align: center; color: var(--muted); font-size: .8rem; margin: 6px 0 0; min-height: 1.2em; }
+  .hint.warn { color: var(--warn); }
+  .keys { display: none; }
+  @media (hover: hover) and (pointer: fine) { .keys { display: inline; } }
+
+  @media (max-height: 520px) {  /* a phone on its side: keep the dock small */
+    .mic { min-height: 48px; padding: 10px; }
+    .hint { display: none; }
+    .status { margin-bottom: 4px; }
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
+<div class="app">
+  <header class="top">
     <h1>KhataCall</h1>
     <span class="tag" id="mode">connecting…</span>
   </header>
-  <p class="sub">Hinglish voice assistant for a kirana udhaar book. Hold the button and speak.</p>
 
-  <button class="mic" id="mic" disabled>Hold to speak</button>
-  <p class="hint">Hold the button, or hold the <kbd>Space</kbd> bar</p>
+  <main>
+    <p class="sub">Hinglish voice assistant for a kirana udhaar book.</p>
 
-  <div class="panel phone">
-    <label class="switch"><input type="checkbox" id="phone"> Phone-line mode
-      <span class="tagline">a mobile call from a noisy shop, through the same channel the eval measured</span></label>
-    <div class="opts" id="phone-opts" hidden>
-      <label>Shop noise
-        <select id="snr">
-          <option value="">none</option><option value="20">20 dB</option>
-          <option value="10" selected>10 dB</option><option value="5">5 dB</option><option value="0">0 dB</option>
-        </select></label>
-      <label>Packet loss
-        <select id="loss">
-          <option value="0" selected>0%</option><option value="1">1%</option>
-          <option value="5">5%</option><option value="10">10%</option>
-        </select></label>
-      <span class="measured" id="measured"></span>
+    <section class="panel">
+      <h2>Conversation</h2>
+      <div id="convo"><p class="empty">Hold the button and say, for example, “Sharma ji ka dedh sau udhaar likho”.</p></div>
+    </section>
+
+    <div class="cols">
+      <section class="panel">
+        <h2>Khata <span class="tagline" id="owed"></span></h2>
+        <div class="rows" id="customers"><p class="empty">No customers yet.</p></div>
+      </section>
+      <section class="panel">
+        <h2>Stock</h2>
+        <div class="rows" id="items"><p class="empty">No items yet.</p></div>
+      </section>
     </div>
-  </div>
 
-  <div class="status"><span class="dot" id="dot"></span><span id="state">Connecting…</span></div>
+    <details class="panel fold" id="phone-panel">
+      <summary>Phone-line mode <span class="sum" id="phone-sum">off</span></summary>
+      <label class="switch"><input type="checkbox" id="phone">
+        <span>Simulate a phone call
+          <small>A mobile call from a noisy shop, through the same channel the eval measured.</small></span></label>
+      <div class="opts" id="phone-opts" hidden>
+        <label>Shop noise
+          <select id="snr">
+            <option value="">none</option><option value="20">20 dB</option>
+            <option value="10" selected>10 dB</option><option value="5">5 dB</option><option value="0">0 dB</option>
+          </select></label>
+        <label>Packet loss
+          <select id="loss">
+            <option value="0" selected>0%</option><option value="1">1%</option>
+            <option value="5">5%</option><option value="10">10%</option>
+          </select></label>
+        <p class="measured" id="measured"></p>
+      </div>
+    </details>
 
-  <div class="panel">
-    <h2>Conversation</h2>
-    <div id="convo"><p class="empty">Nothing yet.</p></div>
-  </div>
+    <details class="panel fold" id="lat-panel">
+      <summary>Latency, from end of speech <span class="sum" id="lat-sum"></span></summary>
+      <div class="lat">
+        <div><div class="k">Speech→text</div><div class="v" id="l-stt">—</div></div>
+        <div><div class="k">Evon</div><div class="v" id="l-llm">—</div></div>
+        <div><div class="k">First audio</div><div class="v" id="l-tts">—</div></div>
+        <div class="total"><div class="k">Total</div><div class="v" id="l-total">—</div></div>
+      </div>
+    </details>
 
-  <div class="cols">
-    <div class="panel">
-      <h2>Khata <span class="tagline" id="owed"></span></h2>
-      <div class="rows" id="customers"><p class="empty">No customers yet.</p></div>
+    <details class="panel fold" id="log-panel">
+      <summary>Log</summary>
+      <div class="log" id="log"></div>
+    </details>
+  </main>
+
+  <div class="dock">
+    <div class="status" aria-live="polite">
+      <span class="dot bad" id="dot"></span><span id="state">Connecting…</span>
+      <span class="line" id="line-tag" hidden>phone line</span>
     </div>
-    <div class="panel">
-      <h2>Stock</h2>
-      <div class="rows" id="items"><p class="empty">No items yet.</p></div>
-    </div>
-  </div>
-
-  <div class="panel">
-    <h2>Latency, this turn (from end of speech)</h2>
-    <div class="lat">
-      <div><div class="k">Speech→text</div><div class="v" id="l-stt">—</div></div>
-      <div><div class="k">Evon</div><div class="v" id="l-llm">—</div></div>
-      <div><div class="k">First audio</div><div class="v" id="l-tts">—</div></div>
-      <div class="total"><div class="k">Total</div><div class="v" id="l-total">—</div></div>
-    </div>
-  </div>
-
-  <div class="panel">
-    <h2>Log</h2>
-    <div class="log" id="log"></div>
+    <p class="alert" id="alert" role="alert" hidden></p>
+    <button class="mic" id="mic" disabled>Connecting…</button>
+    <p class="hint" id="hint">Hold while you speak, let go when done<span class="keys"> · or hold the Space bar</span></p>
   </div>
 </div>
 
 <script>
 const SAMPLE_RATE = 16000;
+const MIN_HOLD_MS = 250;      // shorter is a tap, not speech; the server ignores it too
+const MAX_HOLD_MS = 30000;    // a stuck press must not stream (and bill) forever
+const BUSY = new Set(["TRANSCRIBING", "THINKING", "CONFIRMING", "SPEAKING"]);
+const BUSY_LABEL = {
+  TRANSCRIBING: "Hearing you…", THINKING: "Thinking…", CONFIRMING: "Checking…", SPEAKING: "Speaking…",
+};
 const $ = (id) => document.getElementById(id);
+const mic = $("mic");
 
-let ws, audioCtx, micStream, micNode, playhead = 0, holding = false, ready = false;
+let ws, connected = false, serverState = "IDLE";
+let audioCtx = null, micStream = null, micSource = null, micNode = null;
+let micReady = false, micStarting = false;
+let holding = false, holdStartedAt = 0, holdTimer = null, hintTimer = null, playhead = 0;
+const defaultHint = $("hint").innerHTML;
 
 function log(line, isError) {
   const el = document.createElement("div");
@@ -171,17 +239,34 @@ function log(line, isError) {
   $("log").prepend(el);
 }
 
-function setState(state) {
-  const labels = {
-    IDLE: "Idle", LISTENING: "Ready — hold to speak", TRANSCRIBING: "Transcribing…",
-    THINKING: "Thinking…", CONFIRMING: "Confirming…", SPEAKING: "Speaking…",
-  };
-  $("state").textContent = labels[state] || state;
-  const dot = $("dot");
-  dot.className = "dot " + (
-    state === "LISTENING" ? "live" :
-    ["TRANSCRIBING", "THINKING", "SPEAKING"].includes(state) ? "busy" : ""
-  );
+function showAlert(text) { $("alert").textContent = text; $("alert").hidden = false; }
+function hideAlert() { $("alert").hidden = true; }
+
+function flashHint(text) {
+  clearTimeout(hintTimer);
+  $("hint").textContent = text;
+  $("hint").classList.add("warn");
+  hintTimer = setTimeout(() => { $("hint").innerHTML = defaultHint; $("hint").classList.remove("warn"); }, 4000);
+}
+
+// The button and the status line are both derived from here, so they cannot disagree.
+function refresh() {
+  const busy = BUSY.has(serverState);
+  let label, state, dot = "";
+  if (!connected) { label = "Connecting…"; state = "Connecting to KhataCall…"; dot = "bad"; }
+  else if (micStarting) { label = "Turning the mic on…"; state = "Allow the microphone if asked"; }
+  else if (!micReady) { label = "Tap to turn on the mic"; state = "Microphone is off"; }
+  else if (holding) { label = "Listening… let go when done"; state = "Listening"; dot = "rec"; }
+  else if (busy) { label = BUSY_LABEL[serverState]; state = BUSY_LABEL[serverState]; dot = "busy"; }
+  else { label = "Hold to speak"; state = "Ready"; dot = "live"; }
+  mic.textContent = label;
+  mic.disabled = !connected || micStarting;
+  mic.classList.toggle("setup", connected && !micReady && !micStarting);
+  mic.classList.toggle("held", holding);
+  mic.classList.toggle("busy", busy && !holding && micReady);
+  mic.setAttribute("aria-pressed", String(holding));
+  $("state").textContent = state;
+  $("dot").className = "dot " + dot;
 }
 
 function addTurn(who, text, extra) {
@@ -200,17 +285,19 @@ function addTurn(who, text, extra) {
   convo.prepend(wrap);
 }
 
+function fmtMs(v) { return v == null ? "—" : v >= 1000 ? (v / 1000).toFixed(2) + " s" : Math.round(v) + " ms"; }
+
 function showLatency(m) {
-  const fmt = (v) => (v == null ? "—" : v >= 1000 ? (v / 1000).toFixed(2) + " s" : Math.round(v) + " ms");
-  $("l-stt").textContent = fmt(m.stt_ms);
-  $("l-llm").textContent = fmt(m.llm_ms);
-  $("l-tts").textContent = fmt(m.tts_first_byte_ms);
-  $("l-total").textContent = fmt(m.total_ms);
+  $("l-stt").textContent = fmtMs(m.stt_ms);
+  $("l-llm").textContent = fmtMs(m.llm_ms);
+  $("l-tts").textContent = fmtMs(m.tts_first_byte_ms);
+  $("l-total").textContent = fmtMs(m.total_ms);
+  $("lat-sum").textContent = m.total_ms == null ? "" : "last turn " + fmtMs(m.total_ms);
 }
 
 // --- the live ledger panel ---
-// Amounts arrive as integer paise and are only ever divided for display; no
-// arithmetic happens here, so there is nothing to disagree with the server about.
+// Amounts arrive as integer paise and are only divided for display. The one sum
+// here (what is outstanding) adds integers, so it is exact.
 
 let lastLedger = { customers: {}, items: {} };
 
@@ -283,9 +370,8 @@ function playChunk(arrayBuffer) {
   const source = audioCtx.createBufferSource();
   source.buffer = buffer;
   source.connect(audioCtx.destination);
-  const now = audioCtx.currentTime;
   // Keep a small cushion so consecutive chunks do not click.
-  playhead = Math.max(playhead, now + 0.06);
+  playhead = Math.max(playhead, audioCtx.currentTime + 0.06);
   source.start(playhead);
   playhead += buffer.duration;
 }
@@ -314,6 +400,9 @@ function conditionFor(snr, loss) {
 function showMeasured() {
   const c = phoneConfig();
   const el = $("measured");
+  $("phone-sum").textContent = c.phone_mode
+    ? `on · ${c.snr_db == null ? "no noise" : c.snr_db + " dB noise"} · ${c.loss_pct}% loss` : "off";
+  $("line-tag").hidden = !c.phone_mode;
   if (!c.phone_mode || !evalSummary) { el.textContent = ""; return; }
   const id = conditionFor(c.snr_db, c.loss_pct);
   const s = id && evalSummary.conditions[id];
@@ -339,7 +428,8 @@ function hearButton(heard) {
   const noise = heard.snr_db == null ? "no noise" : `${heard.snr_db} dB noise`;
   b.textContent = `▶ Hear what Prisma heard (${noise}, ${heard.loss_pct}% loss)`;
   b.addEventListener("click", () => {
-    if (!audioCtx) audioCtx = new AudioContext();
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    audioCtx.resume();
     const bytes = Uint8Array.from(atob(heard.pcm_b64), (ch) => ch.charCodeAt(0));
     const pcm = new Int16Array(bytes.buffer);
     const buffer = audioCtx.createBuffer(1, pcm.length, heard.sample_rate);
@@ -356,66 +446,131 @@ function hearButton(heard) {
 fetch("/eval/summary").then((r) => (r.ok ? r.json() : null))
   .then((s) => { evalSummary = s; showMeasured(); }).catch(() => {});
 
-// --- microphone capture ---
+// --- microphone ---
+// Phones start audio only from a tap (a click), never from the touch that begins a
+// hold. So the mic is turned on by one tap, after which press and release are
+// synchronous: nothing awaits between the finger going down and "start" being sent.
 
-async function startMic() {
-  micStream = await navigator.mediaDevices.getUserMedia({
-    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-  });
-  const source = audioCtx.createMediaStreamSource(micStream);
+// Average each group of input samples rather than taking every third one: a plain
+// pick lets everything above 8 kHz fold back into the speech band.
+function downsample(input, ratio) {
+  const out = new Int16Array(Math.floor(input.length / ratio));
+  for (let i = 0; i < out.length; i++) {
+    const from = Math.floor(i * ratio), to = Math.max(from + 1, Math.floor((i + 1) * ratio));
+    let sum = 0;
+    for (let j = from; j < to; j++) sum += input[j];
+    out[i] = Math.max(-1, Math.min(1, sum / (to - from))) * 32767;
+  }
+  return out;
+}
 
-  // ScriptProcessor is deprecated but needs no module loading and is well supported.
-  // The buffer is 4096 frames at the context rate; we downsample to 16 kHz below.
-  micNode = audioCtx.createScriptProcessor(4096, 1, 1);
-  micNode.onaudioprocess = (event) => {
-    if (!holding || !ws || ws.readyState !== WebSocket.OPEN) return;
-    const input = event.inputBuffer.getChannelData(0);
-    const ratio = audioCtx.sampleRate / SAMPLE_RATE;
-    const out = new Int16Array(Math.floor(input.length / ratio));
-    for (let i = 0; i < out.length; i++) {
-      const s = input[Math.floor(i * ratio)];
-      out[i] = Math.max(-1, Math.min(1, s)) * 32767;
-    }
-    ws.send(out.buffer);
-  };
-  source.connect(micNode);
-  // ScriptProcessor only runs while connected to a destination; a zero gain keeps it silent.
-  const mute = audioCtx.createGain();
-  mute.gain.value = 0;
-  micNode.connect(mute).connect(audioCtx.destination);
+async function enableMic() {
+  if (micReady || micStarting) return;
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+    showAlert("This browser allows the microphone only on a secure link. Open KhataCall through its https:// address.");
+    return;
+  }
+  micStarting = true;
+  hideAlert();
+  refresh();
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const resumed = audioCtx.resume();  // inside the tap, which is what phones require
+    const silence = audioCtx.createBufferSource();  // iOS unlocks playback only from a gesture
+    silence.buffer = audioCtx.createBuffer(1, 1, 22050);
+    silence.connect(audioCtx.destination);
+    silence.start();
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+    await resumed;
+    await audioCtx.resume();
+    micSource = audioCtx.createMediaStreamSource(micStream);
+    // ScriptProcessor is deprecated but needs no module loading and runs on every phone browser.
+    micNode = audioCtx.createScriptProcessor(4096, 1, 1);
+    micNode.onaudioprocess = (event) => {
+      if (!holding || !ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(downsample(event.inputBuffer.getChannelData(0), audioCtx.sampleRate / SAMPLE_RATE).buffer);
+    };
+    micSource.connect(micNode);
+    // ScriptProcessor only runs while connected to a destination; a zero gain keeps it silent.
+    const mute = audioCtx.createGain();
+    mute.gain.value = 0;
+    micNode.connect(mute).connect(audioCtx.destination);
+    micStream.getAudioTracks()[0].addEventListener("ended", () => stopMic("The microphone was taken away; tap to turn it on again."));
+    micReady = true;
+    log(`microphone on (${audioCtx.sampleRate} Hz, sent at ${SAMPLE_RATE} Hz)`);
+  } catch (e) {
+    stopMic();
+    showAlert(e.name === "NotAllowedError"
+      ? "Microphone permission was refused. Allow it in the browser's site settings, then tap again."
+      : "Could not start the microphone: " + e.message);
+  } finally {
+    micStarting = false;
+    refresh();
+  }
+}
+
+function stopMic(reason) {
+  if (holding) release();
+  micStream?.getTracks().forEach((t) => t.stop());
+  micSource?.disconnect();
+  micNode?.disconnect();
+  micStream = micSource = micNode = null;
+  micReady = false;
+  if (reason) flashHint(reason);
+  refresh();
 }
 
 // --- push to talk ---
 
-async function press() {
-  if (holding || !ready || !ws || ws.readyState !== WebSocket.OPEN) return;
-  if (!audioCtx) {
-    audioCtx = new AudioContext();
-    await startMic();
-  }
-  await audioCtx.resume();
+function press() {
+  if (!micReady || holding || !connected || BUSY.has(serverState)) return false;
+  if (audioCtx.state !== "running") audioCtx.resume();  // a phone call or alarm can suspend it
   holding = true;
-  $("mic").classList.add("held");
+  holdStartedAt = performance.now();
+  hideAlert();
   ws.send(JSON.stringify({ type: "start" }));
+  holdTimer = setTimeout(() => { release(); flashHint("Let go after 30 s. Hold only while you speak."); }, MAX_HOLD_MS);
+  navigator.vibrate?.(15);  // the finger is covering the button
+  refresh();
+  return true;
 }
 
 function release() {
   if (!holding) return;
   holding = false;
-  $("mic").classList.remove("held");
-  ws.send(JSON.stringify({ type: "stop" }));
+  clearTimeout(holdTimer);
+  const held = performance.now() - holdStartedAt;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: "stop" }));
+    if (held >= MIN_HOLD_MS) serverState = "TRANSCRIBING";  // until the server says so itself
+  }
+  if (held < MIN_HOLD_MS) flashHint("Hold the button while you speak, then let go.");
+  refresh();
 }
 
-const mic = $("mic");
-mic.addEventListener("pointerdown", (e) => { e.preventDefault(); press(); });
-mic.addEventListener("pointerup", release);
-mic.addEventListener("pointercancel", release);
-mic.addEventListener("pointerleave", release);
-window.addEventListener("keydown", (e) => {
-  if (e.code === "Space" && !e.repeat && e.target === document.body) { e.preventDefault(); press(); }
+mic.addEventListener("click", () => { if (!micReady) enableMic(); });
+mic.addEventListener("pointerdown", (e) => {
+  if (!micReady) return;  // the click that follows turns the mic on
+  e.preventDefault();
+  // Capture, so a finger that slides off the button does not end the sentence.
+  if (press()) mic.setPointerCapture(e.pointerId);
 });
-window.addEventListener("keyup", (e) => { if (e.code === "Space") { e.preventDefault(); release(); } });
+for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) mic.addEventListener(type, release);
+mic.addEventListener("contextmenu", (e) => e.preventDefault());
+
+window.addEventListener("keydown", (e) => {
+  if (e.code !== "Space" || e.repeat || (e.target !== document.body && e.target !== mic)) return;
+  e.preventDefault();
+  if (micReady) press(); else enableMic();
+});
+window.addEventListener("keyup", (e) => { if (e.code === "Space" && holding) { e.preventDefault(); release(); } });
 window.addEventListener("blur", release);
+// A phone in a pocket or another app should not keep the microphone open.
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && micReady) stopMic("The mic turned off while KhataCall was in the background.");
+});
 
 // --- connection ---
 
@@ -424,51 +579,67 @@ function connect() {
   ws.binaryType = "arraybuffer";
 
   ws.onopen = () => {
-    ready = true;
-    $("mic").disabled = false;
-    setState("LISTENING");
+    connected = true;
+    serverState = "IDLE";
     log("connected");
     if ($("phone").checked) sendPhoneConfig();
+    refresh();
   };
 
   ws.onmessage = (event) => {
     if (event.data instanceof ArrayBuffer) { playChunk(event.data); return; }
     const m = JSON.parse(event.data);
     switch (m.type) {
-      case "state": setState(m.state); break;
+      case "state": serverState = m.state; refresh(); break;
       case "heard_audio": pendingHeard = m; break;
       case "transcript":
-        addTurn(pendingHeard ? "You said, over the phone line" : "You said", m.text,
+        addTurn(pendingHeard ? "You said, over the phone line" : "You said", m.text || "(nothing heard)",
                 pendingHeard ? hearButton(pendingHeard) : null);
         pendingHeard = null;
         break;
       case "agent_text": addTurn("KhataCall", m.text); break;
       case "audio_start": playRate = m.sample_rate; playhead = 0; break;
       case "audio_end": break;
-      case "latency": showLatency(m); log(`latency total ${Math.round(m.total_ms)} ms`); break;
-      case "notice": log(m.message); break;
-      case "error": log(m.message, true); break;
+      case "latency":
+        showLatency(m);
+        log(m.total_ms == null ? "latency: no audio" : `latency total ${Math.round(m.total_ms)} ms`);
+        break;
+      case "notice":
+        log(m.message);
+        if (m.message.startsWith("Too short")) flashHint("Hold the button while you speak, then let go.");
+        break;
+      case "error": log(m.message, true); showAlert(m.message); break;
       case "ledger_update": showLedger(m); break;
     }
   };
 
   ws.onclose = () => {
-    ready = false;
-    $("mic").disabled = true;
-    $("dot").className = "dot bad";
-    $("state").textContent = "Disconnected — retrying…";
+    if (holding) { holding = false; clearTimeout(holdTimer); }
+    connected = false;
+    serverState = "IDLE";
     log("disconnected", true);
+    refresh();
     setTimeout(connect, 1500);
   };
 
   ws.onerror = () => log("websocket error", true);
 }
 
+// Settings, latency and the log are folded away on a phone, open on a wide screen.
+if (matchMedia("(min-width: 720px)").matches) { $("phone-panel").open = true; $("lat-panel").open = true; }
+if (!window.isSecureContext || !navigator.mediaDevices) {
+  showAlert("This browser allows the microphone only on a secure link. Open KhataCall through its https:// address.");
+}
+
 fetch("/healthz")
   .then((r) => r.json())
-  .then((h) => { $("mode").textContent = h.mode === "fakes" ? "fakes (no API calls)" : "Gnani models"; })
+  .then((h) => {
+    $("mode").textContent = { fakes: "fakes (no API calls)", "gnani (canned Evon)": "Prisma + Timbre, canned Evon" }[h.mode]
+      || "Gnani models";
+  })
   .catch(() => { $("mode").textContent = "unknown"; });
 
+refresh();
 connect();
 </script>
 </body>

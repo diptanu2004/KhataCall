@@ -101,7 +101,6 @@ class EvonLLM:
         self._temperature = temperature
         self._max_tokens = max_tokens
         self._extra_body = DEFAULT_EXTRA_BODY if extra_body is None else extra_body
-        self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             timeout=timeout_s, limits=httpx.Limits(keepalive_expiry=KEEPALIVE_S)
         )
@@ -118,13 +117,10 @@ class EvonLLM:
         `complete` reports a real outage.
         """
         try:
-            await self._client.get(self._health_url, headers=self._headers())
+            # Short, so a hung tunnel cannot hold a closing call open for the full timeout.
+            await self._client.get(self._health_url, headers=self._headers(), timeout=5.0)
         except httpx.HTTPError:
             pass
-
-    async def aclose(self) -> None:
-        if self._owns_client:
-            await self._client.aclose()
 
     def _body(self, messages: Sequence[Message], tools: Sequence[dict[str, Any]]) -> dict[str, Any]:
         payload: list[dict[str, str]] = [{"role": m.role, "content": m.content} for m in messages]

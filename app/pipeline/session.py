@@ -3,10 +3,12 @@
 Half-duplex and push-to-talk: one turn at a time, driven by `start` / audio /
 `stop` from the browser.
 
-    IDLE -> LISTENING -> TRANSCRIBING -> THINKING -> SPEAKING -> LISTENING
+    IDLE -> LISTENING -> TRANSCRIBING -> THINKING -> [CONFIRMING] -> SPEAKING -> LISTENING
 
-M1 handles conversation only. The CONFIRMING state, tools, and ledger writes
-arrive in M2.
+A write that Evon proposes is read back (CONFIRMING), and the owner's "haan"
+on the next turn commits it without asking Evon again (D-006). Turns are
+handled one at a time: audio pressed during a turn waits in the socket and is
+handled when the turn ends.
 
 The session is deliberately ignorant of FastAPI: it takes two send callables
 and the three adapters, so the whole turn can be tested with fakes.
@@ -270,9 +272,20 @@ class Session:
         """Push-to-talk released. This is end of speech: the latency clock starts here."""
         if self.state is not State.LISTENING or (self._live is None and self._buffer is None):
             log.warning("stop ignored while %s", self.state)
+            # Say where things stand, e.g. after a start that failed to open Prisma, so
+            # the page does not wait for a turn that is never coming.
+            await self._set_state(self.state)
             return
 
         speech_end = time.perf_counter()
+        if self._pushed_bytes / 2 / self._client_sample_rate < MIN_UTTERANCE_S:
+            # A tap, not speech. Nothing is worth paying to transcribe, and Prisma would
+            # wait out its 15 s timeout for speech that never comes (D-047).
+            self._buffer = None
+            self._release_stt()
+            await self._send(NoticeMessage(message="Too short: hold the button while you speak."))
+            await self._set_state(State.LISTENING)
+            return
         await self._set_state(State.TRANSCRIBING)
 
         try:
