@@ -345,11 +345,12 @@ come from the same commit and the same cached transcripts.
 
 ### M5 — Package and ship (Fri Nov 6 – Mon Nov 9)
 **Fri Nov 6**
-- [ ] README: results + charts, the 12-condition grid, latency with real Evon, setup < 5 min,
+- [x] README: results + charts, the 12-condition grid, latency with real Evon, setup < 5 min,
       known limitations, **Path to production** (concurrent calls, telephony integration,
       per-shop tenancy on Postgres, latency budgets)
 - [ ] Demo script + seeded demo database
-- [ ] Fresh-clone test: clone → `uv sync` → the UI runs with `USE_FAKES=true` in under 5 minutes
+- [x] Fresh-clone test: clone → `uv sync` → the UI runs with `USE_FAKES=true` in under 5 minutes
+      (Nov 8: sync 14 s with a warm uv cache, tests and `ui_check` pass, no `.env` needed)
 - [ ] Draft the written explanation (which Gnani model does what, eval method, results)
 
 **Sat Nov 7**
