@@ -49,8 +49,8 @@ def test_a_bill_paid_in_part_writes_only_the_rest_and_keeps_the_bill_as_the_note
 
 
 def test_a_part_paid_bill_said_with_ne_diye_is_not_turned_into_a_payment():
-    # The payment guard (fix 1) reads "ne ... diye" as a payment. With the part paid
-    # already in the proposal, swapping would book the whole Rs 650 as paid.
+    # The payment guard (fix 1) reads "ne ... diye" as a payment. Fix 6 reads the bill
+    # and the part paid from the words first; a swap would book the whole Rs 650 as paid.
     _, ledger = run(by_name("said the other way round"))
     assert ledger.balance_paise(ledger.find_customer("Mehra ji").id) == 35_000
 

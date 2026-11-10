@@ -138,7 +138,7 @@ khatacall/
       tools.py           # tool schemas + Pydantic arg models
       executor.py        # validation, name resolution, confirmation gate
       fixes.py           # the M4 fixes behind one switch: payment guard, spellings,
-                         # units, heard check (numbers), name check
+                         # units, heard check (numbers), name check; + part-paid bill (D-049)
     nlu/
       numbers.py         # Hinglish/Hindi/English spoken numbers → paise
       names.py           # honorific stripping + fuzzy match
@@ -183,7 +183,7 @@ of this in phone-sized Chrome.
 ### Agent tools (`agent/tools.py`)
 | Tool | Args | Writes? |
 |---|---|---|
-| `add_credit` | customer_name, amount_spoken, note?, paid_spoken? (a bill paid in part, D-048) | yes |
+| `add_credit` | customer_name, amount_spoken, note? (+ paid_spoken, a bill paid in part: filled by code from the transcript, hidden from Evon, D-049) | yes |
 | `record_payment` | customer_name, amount_spoken | yes |
 | `get_balance` | customer_name | no |
 | `update_stock` | item, qty_delta_spoken | yes |
@@ -371,8 +371,9 @@ come from the same commit and the same cached transcripts.
 
 **Mon Nov 9**
 - [ ] [human] Submit: demo, written explanation, models used, post links; nominate post #1 and the main post
-- [x] Final check: tests green, README links work, results committed (Nov 10: 783 pass;
-      the repo is still private and 29+ commits ahead of GitHub, so push it and give the judges access)
+- [x] Final check: tests green, README links work, results committed (Nov 10: 815 pass;
+      `scripts.demo_check` 13/13 on real Evon; the repo is still private and 30+ commits ahead
+      of GitHub, so push it and give the judges access)
 
 **Tue Nov 10 — deadline.** Emergency fixes only; the submission is already in.
 

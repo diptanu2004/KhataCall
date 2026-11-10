@@ -33,10 +33,10 @@ the hardest audio for speech recognition.
 
 Six tools: add credit, record a payment, check a balance, update stock, check
 stock, and list what is running low. A bill paid in part works too: "Mehra ji ka
-bill saadhe chhe sau, paanch sau diye, baaki likh do" puts Rs 150 on credit. Evon
-passes both amounts as spoken and the subtraction is done in code. The owner holds a
-button and speaks. The reply
-is spoken back and the ledger on screen updates live. The page is built for a
+bill saadhe chhe sau, paanch sau diye, baaki likh do" puts Rs 150 on credit: code
+reads both amounts from the owner's words and subtracts, and the read-back says all
+three numbers. The owner holds a button and speaks. The reply is spoken back and the
+ledger on screen updates live. The page is built for a
 phone, and a **phone-line mode** runs the owner's live speech through the same
 simulated mobile call the evaluation used, so a judge can hear what Prisma heard.
 

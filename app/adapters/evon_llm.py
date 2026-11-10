@@ -150,7 +150,12 @@ class EvonLLM:
         try:
             parsed = response.json()
         except ValueError:
-            raise EvonError(response.text[:200] or "non-JSON response", status=response.status_code) from None
+            # Not the API: an error page. 530 is Cloudflare's for a tunnel with nothing behind
+            # it, which is what an ended Kaggle session looks like. The page itself is HTML,
+            # unreadable on the phone screen, so it is not passed on.
+            hint = ": the tunnel is down, restart Evon on Kaggle (docs/EVON_KAGGLE.md)" if response.status_code == 530 else ""
+            raise EvonError(f"the Evon address answered with a web page, not the API{hint}",
+                            status=response.status_code) from None
         if response.status_code != 200:
             error = parsed.get("error")
             message = error.get("message") if isinstance(error, dict) else str(error or "request failed")
@@ -196,9 +201,15 @@ class EvonLLM:
             if isinstance(arguments, dict) and function.get("name"):
                 calls.append(ToolCall(name=function["name"], arguments=arguments, id=raw.get("id")))
 
-        if not calls and expect_tool and self._tool_mode == "prompt" and text:
+        looks_like_json = bool(text) and text.lstrip().startswith("{")
+        if not calls and expect_tool and text and (self._tool_mode == "prompt" or looks_like_json):
             if (parsed_call := _parse_prompted_tool_call(text)) is not None:
                 return LLMReply(text=None, tool_calls=(parsed_call,))
+        if not calls and looks_like_json:
+            # Seen Nov 10 in native mode: a tool call's arguments written out as the reply,
+            # with no tool name. Which tool is a guess, and spoken aloud it is JSON, so it is
+            # dropped and the session asks the owner to say it again.
+            return LLMReply(text=None, tool_calls=())
 
         return LLMReply(text=text, tool_calls=tuple(calls))
 

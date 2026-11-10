@@ -188,6 +188,23 @@ def test_native_mode_does_not_retry():
     assert len(seen) == 1
 
 
+def test_native_mode_arguments_written_as_text_are_never_spoken():
+    """Seen Nov 10: real Evon wrote a call's arguments as the reply, with no tool name."""
+    text = '{"customer_name": "Mehra ji", "amount_spoken": "saadhe chhe sau", "note": "bill"}'
+    llm, seen = build([chat_response(content=text)])
+    reply = run(llm, tools=[ADD_CREDIT_SCHEMA])
+    assert reply.text is None and reply.tool_calls == ()  # the session says "phir se boliye"
+    assert len(seen) == 1
+
+
+def test_native_mode_a_whole_call_written_as_text_is_used():
+    text = '{"tool": "add_credit", "arguments": {"customer_name": "Sharma ji", "amount_spoken": "dedh sau"}}'
+    llm, _ = build([chat_response(content=text)])
+    reply = run(llm, tools=[ADD_CREDIT_SCHEMA])
+    assert reply.tool_calls[0].name == "add_credit"
+    assert reply.tool_calls[0].arguments["amount_spoken"] == "dedh sau"
+
+
 # --- failures --------------------------------------------------------------
 
 
@@ -196,6 +213,16 @@ def test_http_error_raises_with_server_message():
     with pytest.raises(EvonError, match="context length exceeded") as err:
         run(llm)
     assert err.value.status == 400
+
+
+def test_a_dead_tunnel_says_so_instead_of_passing_on_html():
+    """An ended Kaggle session: Cloudflare answers 530 with an HTML page (Nov 10)."""
+    page = "<!doctype html>\n<!--[if lt IE 7]> <html class=\"no-js ie6 oldie\" lang=\"en-US\"> <![endif]-->"
+    llm, _ = build([httpx.Response(530, text=page, headers={"content-type": "text/html"})])
+    with pytest.raises(EvonError, match="tunnel is down") as err:
+        run(llm)
+    assert err.value.status == 530
+    assert "<" not in str(err.value)
 
 
 def test_unreachable_endpoint_names_the_url():

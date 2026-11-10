@@ -33,6 +33,7 @@ from fractions import Fraction
 __all__ = [
     "heard_values",
     "normalise",
+    "number_spans",
     "parse_amount_paise",
     "parse_number",
     "parse_quantity",
@@ -359,6 +360,39 @@ def parse_quantity(text: str, *, spelling_fixes: bool = True, unit_words: bool =
     if value is None or value <= 0 or value > 1_000_000:
         return None
     return value
+
+
+def number_spans(text: str, *, spelling_fixes: bool = True) -> tuple[list[str], list[tuple[int, int]]]:
+    """The tokens of `text`, and each run of them that reads as one number, left to right.
+
+    Greedy: at each token the longest run that parses wins, and the scan goes on
+    after it. `parse_number` refuses two numbers side by side, so "saadhe chhe sau
+    paanch sau" comes out as two runs, 650 and 500. A run starts and ends on a word
+    that carries value: filler at either edge ("ka", "rupaye", "mile") is left
+    outside, so the word after a run is the one that follows the number.
+    """
+    tokens = _tokens(text)
+    ignored = IGNORED_FIXED if spelling_fixes else IGNORED
+    filler = [normalise(t) in ignored for t in tokens]
+    spans: list[tuple[int, int]] = []
+    start = 0
+    while start < len(tokens):
+        if filler[start]:
+            start += 1
+            continue
+        end = next(
+            (e for e in range(min(len(tokens), start + 12), start, -1)
+             if parse_number(" ".join(tokens[start:e]), spelling_fixes=spelling_fixes) is not None),
+            None,
+        )
+        if end is None:
+            start += 1
+            continue
+        while filler[end - 1]:
+            end -= 1
+        spans.append((start, end))
+        start = end
+    return tokens, spans
 
 
 def heard_values(text: str, *, spelling_fixes: bool = True) -> set[Fraction]:

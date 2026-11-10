@@ -5,10 +5,13 @@ Most of these tests are about what does *not* happen. The LLM never writes
 uncertain becomes a question instead of a default.
 """
 
+from dataclasses import replace
+
 import pytest
 
 from app.adapters.base import ToolCall
 from app.agent.executor import Executor, Outcome, rupees, spell_digits
+from app.agent.fixes import ALL
 from app.ledger.db import connect
 from app.ledger.repo import Ledger
 
@@ -166,13 +169,33 @@ def test_phone_mode_spells_the_amount_out(seeded):
     assert "150 rupaye" in asked.speech
 
 
-# --- a bill paid in part: Evon hands over both amounts, code subtracts ----------
+# --- a bill paid in part: both amounts read from the owner's words, code subtracts ---
 
 PART_PAID = "Sharma ji ka bill saadhe chhe sau ka hua, paanch sau diye, baaki likh do"
 
 
 def part_paid(bill="saadhe chhe sau", paid="paanch sau"):
     return call("add_credit", customer_name="Sharma ji", amount_spoken=bill, paid_spoken=paid)
+
+
+@pytest.fixture
+def without_fix_6(seeded):
+    """The executor's own checks on a part paid, with fix 6 not filling it from the words."""
+    return Executor(seeded, fixes=replace(ALL, part_paid=False))
+
+
+@pytest.mark.parametrize(
+    "proposed",
+    [
+        credit(amount="saadhe chhe sau"),  # what real Evon proposes: the bill only (Nov 10)
+        credit(amount="paanch sau"),  # the part paid passed as the bill
+        call("record_payment", customer_name="Sharma ji", amount_spoken="paanch sau"),
+    ],
+    ids=["bill only", "part paid as the bill", "proposed as a payment"],
+)
+def test_whatever_evon_makes_of_a_part_paid_bill_the_read_back_comes_from_the_owners_words(agent, proposed):
+    asked = agent.handle(proposed, utterance=PART_PAID)
+    assert asked.speech == "Sharma ji ka bill 650 rupaye, 500 rupaye mile. Baaki 150 rupaye udhaar likh doon?"
 
 
 def test_a_bill_paid_in_part_puts_only_the_rest_on_credit(agent, seeded):
@@ -192,17 +215,23 @@ def test_phone_mode_spells_out_the_amount_that_will_be_written(seeded):
     assert "Baaki ek paanch shunya, 150 rupaye udhaar" in asked.speech
 
 
-def test_the_part_paid_must_be_one_the_owner_said(agent):
-    reply = agent.handle(part_paid(paid="teen sau"), utterance=PART_PAID)
+def test_the_part_paid_must_be_one_the_owner_said(without_fix_6):
+    reply = without_fix_6.handle(part_paid(paid="teen sau"), utterance=PART_PAID)
     assert reply.speech == "Kitne diye? Amount samajh nahi aaya."
-    assert not agent.has_pending
+    assert not without_fix_6.has_pending
 
 
 @pytest.mark.parametrize("bill, paid", [("paanch sau", "paanch sau"), ("paanch sau", "saadhe chhe sau")])
-def test_paying_the_whole_bill_or_more_is_asked_again_not_subtracted(agent, bill, paid):
-    reply = agent.handle(part_paid(bill=bill, paid=paid), utterance=PART_PAID)
+def test_paying_the_whole_bill_or_more_is_asked_again_not_subtracted(without_fix_6, bill, paid):
+    reply = without_fix_6.handle(part_paid(bill=bill, paid=paid), utterance=PART_PAID)
     assert reply.speech == "Bill kitne ka tha, aur kitne diye? Phir se boliye."
-    assert not agent.has_pending
+    assert not without_fix_6.has_pending
+
+
+def test_a_part_paid_bill_where_more_was_paid_than_owed_is_asked_again(agent):
+    said = "Sharma ji ka bill paanch sau ka tha, saat sau diye, baaki likh do"
+    reply = agent.handle(credit(amount="paanch sau"), utterance=said)
+    assert reply.speech == "Bill kitne ka tha, aur kitne diye? Phir se boliye."
 
 
 def test_a_null_word_for_the_part_paid_is_an_ordinary_credit(agent):

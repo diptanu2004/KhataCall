@@ -1,10 +1,12 @@
 """The M4 fixes and their switch (app/agent/fixes.py). Each case is a measured failure."""
 
+from dataclasses import replace
+
 import pytest
 
 from app.adapters.base import ToolCall
 from app.agent.executor import Executor, Outcome
-from app.agent.fixes import ALL, NONE, apply_to_proposal, money_direction
+from app.agent.fixes import ALL, NONE, apply_to_proposal, money_direction, part_paid
 from app.ledger.db import connect
 from app.ledger.repo import Ledger
 from app.nlu.numbers import parse_amount_paise
@@ -64,7 +66,61 @@ def test_the_guard_leaves_a_bill_paid_in_part_alone():
     # "ne paanch sau diye" is the part paid, already carried in paid_spoken.
     args = {"customer_name": "mehra ji", "amount_spoken": "saadhe chhe sau", "paid_spoken": "paanch sau"}
     utterance = "mehra ji ne paanch sau diye bill saadhe chhe sau ka tha baaki khate mein likh do"
-    assert apply_to_proposal(ALL, utterance, "add_credit", args) == ("add_credit", args, None)
+    without_fix_6 = replace(ALL, part_paid=False)
+    assert apply_to_proposal(without_fix_6, utterance, "add_credit", args) == ("add_credit", args, None)
+
+
+# --- fix 6: a bill paid in part, read from the owner's words ---------------------
+
+
+@pytest.mark.parametrize(
+    "utterance, bill, paid",
+    [
+        # The lines real Evon got wrong on Nov 10 (D-049): it never filled the part paid.
+        ("Mehra ji ka bill saadhe chhe sau ka hua, paanch sau diye, baaki khate mein likh do",
+         "saadhe chhe sau", "paanch sau"),
+        ("Mehra ji ne paanch sau diye, bill saadhe chhe sau ka tha, baaki khate mein likh do",
+         "saadhe chhe sau", "paanch sau"),
+        ("Mehra ji ka total saadhe chhe sau hai, unhone paanch sau de diye, baaki udhaar likh do",
+         "saadhe chhe sau", "paanch sau"),
+        ("Sharma ji ka bill hazaar ka tha, chhe sau diye, baaki likh lo", "hazaar", "chhe sau"),
+        ("Gupta aunty ne do sau diye, bill paanch sau ka tha, baaki khate mein daal do", "paanch sau", "do sau"),
+        ("Verma bhaiya ka saat sau ka saamaan liya, teen sau diye, baaki udhaar", "saat sau", "teen sau"),
+        # How Prisma writes it: no punctuation, digits, its own spellings.
+        ("mehra ji ka bill 650 ka hua 500 diye baaki khate mein likh do", "650", "500"),
+        ("mehra ji ka bill sade che sau ka hua paanch sau diye baki khate me likh do", "sade che sau", "paanch sau"),
+        ("Mehra ji ka bill saadhe chhe sau, paanch sau rupaye mile, baaki likh do", "saadhe chhe sau", "paanch sau"),
+    ],
+)
+def test_a_part_paid_bill_is_read_from_the_words(utterance, bill, paid):
+    assert part_paid(utterance) == (bill, paid)
+
+
+@pytest.mark.parametrize(
+    "utterance",
+    [
+        "Sharma ji ka dedh sau udhaar likho",
+        "Chauhan bhai ne ek hazaar diye",
+        "Gupta ji ka paanch sau baaki likho",  # "baaki" alone is ordinary udhaar
+        "Verma ji ka do sau likh do",  # "likh do" is a verb, not a second amount
+        "Sharma ji ka kitna baaki hai",
+        "Sharma ji ne do sau diye, ab kitna baaki hai?",
+        "Sharma ji ne paanch sau diye, baaki aath sau hai",  # a payment, and the balance left
+        "Mehra ji ka bill saadhe chhe sau, paanch sau diye, baaki dedh sau likh do",  # names the rest itself
+    ],
+)
+def test_anything_else_is_left_to_evon(utterance):
+    assert part_paid(utterance) is None
+
+
+def test_fix_6_fills_both_amounts_whatever_evon_proposed_and_keeps_the_customer():
+    utterance = "Gupta aunty ne do sau diye, bill paanch sau ka tha, baaki khate mein daal do"
+    proposed = {"customer_name": "Gupta aunty", "amount_spoken": "do sau", "note": "None"}
+    tool, args, changed = apply_to_proposal(ALL, utterance, "record_payment", proposed)
+    assert tool == "add_credit"
+    assert args == {"customer_name": "Gupta aunty", "amount_spoken": "paanch sau", "paid_spoken": "do sau"}
+    assert changed.startswith("part paid")
+    assert apply_to_proposal(NONE, utterance, "record_payment", proposed) == ("record_payment", proposed, None)
 
 
 def test_a_null_word_for_the_part_paid_does_not_stop_the_guard():

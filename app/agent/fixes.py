@@ -10,6 +10,7 @@ the switch is an object passed explicitly rather than a global.
     fix 3  unit quantities   "paanch kilo", "do bori" parse as 5 and 2
     fix 4  heard check       the number Evon passes must be one the owner said
     fix 5  name check        the customer Evon names must be one the owner said
+    fix 6  part-paid bill    "bill saadhe chhe sau, paanch sau diye, baaki likh do" -> 150 (D-049)
 
 The product runs with everything on (`ALL`); the eval's "before" uses `NONE`.
 """
@@ -22,9 +23,12 @@ from typing import Any, Literal
 from rapidfuzz import fuzz
 
 from app.nlu.names import strip_honorifics
-from app.nlu.numbers import heard_values, normalise
+from app.nlu.numbers import heard_values, normalise, number_spans
 
-__all__ = ["ALL", "NONE", "Fixes", "apply_to_proposal", "filled", "money_direction", "name_was_heard", "was_heard"]
+__all__ = [
+    "ALL", "NONE", "Fixes", "apply_to_proposal", "filled", "money_direction", "name_was_heard", "part_paid",
+    "was_heard",
+]
 
 
 @dataclass(frozen=True)
@@ -34,11 +38,13 @@ class Fixes:
     unit_quantities: bool = True
     heard_check: bool = True
     name_check: bool = True
+    part_paid: bool = True
 
 
 ALL = Fixes()
 NONE = replace(
-    ALL, payment_guard=False, number_spellings=False, unit_quantities=False, heard_check=False, name_check=False
+    ALL, payment_guard=False, number_spellings=False, unit_quantities=False, heard_check=False, name_check=False,
+    part_paid=False,
 )
 
 
@@ -117,16 +123,71 @@ def filled(value: Any) -> bool:
     return isinstance(value, str) and value.strip().lower() not in ("", "none", "null", "nil", "undefined")
 
 
+# --- fix 6: a bill paid in part --------------------------------------------------
+#
+# "Mehra ji ka bill saadhe chhe sau ka hua, paanch sau diye, baaki khate mein likh
+# do" puts 150 on credit, a number nobody said. Evon makes one tool call, so it
+# would have to do the subtraction, and hard rule 7 forbids that. Asked to pass the
+# part paid in an argument of its own, it never did: 0 of 36 tries across three
+# prompts, and twice it passed the part paid as the bill (D-049). So code reads both
+# amounts from the transcript, and acts only on the clear pattern:
+#   - a word for "the rest" (baaki) and one that puts it on the book (bill, likh, khate);
+#   - exactly two amounts, and exactly one of them right before a word for paying;
+#   - "baaki" not followed by an amount: "baaki dedh sau likh do" names the credit itself.
+# Anything else is Evon's proposal as before, and the read-back is the net.
+
+_REST = frozenset(normalise(w) for w in "baaki baki baqi bacha bache bachi bakaya".split())
+_ON_THE_BOOK = frozenset(
+    normalise(w)
+    for w in (
+        "bill total saamaan saman likh likho likhna likhiye likhdo khate khata khaate udhaar udhar udhari "
+        "daal daalo dalo jod jodo chadha chadhao chadhado"
+    ).split()
+)
+_PAYING = frozenset(normalise(w) for w in "de diye die diya dia diyo mile mila jama".split())
+_BETWEEN = frozenset(normalise(w) for w in "rupaye rupay rupaya rupaiya rupees rs ka ke ki only".split())
+
+
+def part_paid(utterance: str, *, spelling_fixes: bool = True) -> tuple[str, str] | None:
+    """(the bill, the part paid), as spoken, when the owner put the rest of a bill on credit."""
+    tokens, spans = number_spans(utterance, spelling_fixes=spelling_fixes)
+    words = [normalise(t) for t in tokens]
+    if not any(w in _REST for w in words) or not any(w in _ON_THE_BOOK for w in words):
+        return None
+    spans = [(s, e) for s, e in spans if words[s:e] != ["do"]]  # "likh do": the verb, not 2
+    if len(spans) != 2 or any(s > 0 and words[s - 1] in _REST for s, _ in spans):
+        return None
+
+    def paying_follows(end: int) -> bool:
+        while end < len(words) and words[end] in _BETWEEN:
+            end += 1
+        return end < len(words) and words[end] in _PAYING
+
+    paid = [span for span in spans if paying_follows(span[1])]
+    if len(paid) != 1:
+        return None
+    bill = next(span for span in spans if span != paid[0])
+    return " ".join(tokens[bill[0]:bill[1]]), " ".join(tokens[paid[0][0]:paid[0][1]])
+
+
 def apply_to_proposal(
     fixes: Fixes, utterance: str, tool: str | None, arguments: dict[str, Any] | None
 ) -> tuple[str | None, dict[str, Any] | None, str | None]:
     """Correct Evon's proposal where a fix applies. Returns (tool, arguments, what changed).
 
-    Only ever swaps between the two money tools, keeping the customer and the
-    amount as spoken. The read-back still asks the owner before anything is
-    written, so a wrong swap is caught exactly as a wrong proposal would be.
+    Only ever swaps between the two money tools, keeping the customer, or fills a
+    part-paid bill's two amounts from the owner's own words. The read-back still
+    asks the owner before anything is written, so a wrong correction is caught
+    exactly as a wrong proposal would be.
     """
-    if not fixes.payment_guard or tool not in ("add_credit", "record_payment") or arguments is None:
+    if tool not in ("add_credit", "record_payment") or arguments is None:
+        return tool, arguments, None
+    if fixes.part_paid and (found := part_paid(utterance, spelling_fixes=fixes.number_spellings)):
+        bill, paid = found
+        kept = {k: v for k, v in arguments.items() if k == "customer_name" or (k == "note" and filled(v))}
+        changed = f"part paid: {tool}({arguments.get('amount_spoken')!r}) -> bill {bill!r}, paid {paid!r}"
+        return "add_credit", {**kept, "amount_spoken": bill, "paid_spoken": paid}, changed
+    if not fixes.payment_guard:
         return tool, arguments, None
     if tool == "add_credit" and filled(arguments.get("paid_spoken")):
         # A bill paid in part: "ne paanch sau diye" is the part paid, already in the

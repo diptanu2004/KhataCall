@@ -72,8 +72,8 @@ phone from the repo, and join the clips.
 below. With phone-line mode on, the read-back gives all three numbers and spells out
 the one that will be written: "Mehra ji ka bill 650 rupaye, 500 rupaye mile. Baaki ek
 paanch shunya, 150 rupaye udhaar likh doon?" Then "haan" gives "Likh diya. Mehra ji ka
-ab 350 rupaye baaki hai." *Voice-over:* "Evon passes both amounts as spoken; the
-subtraction is done in code, and the owner hears all three numbers."
+ab 350 rupaye baaki hai." *Voice-over:* "The arithmetic is done in code, from the
+owner's own words, and the owner hears all three numbers before anything is written."
 
 ## More lines to try
 
@@ -98,7 +98,8 @@ phone-line mode on, the amount that will be written is also spelled out digit by
 | "Paanch kilo chini bik gayi" | "chini ke 5 kilo nikal gaye, likh doon?" | "haan" → "Likh diya. chini ab 25 kilo." |
 
 The tests pin what the code says once Evon has proposed the call. Whether Evon
-proposes it is what `scripts.demo_check` checks against the real model.
+proposes it is what `scripts.demo_check` checks against the real model: all 13
+lines passed on Nov 10, twice in a row.
 
 ## If a take goes wrong
 

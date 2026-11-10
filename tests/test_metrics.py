@@ -1,7 +1,10 @@
 """Scoring a proposed tool call. The eval's numbers are only as honest as this."""
 
+from dataclasses import replace
+
 import pytest
 
+from app.agent.fixes import ALL, NONE
 from eval.metrics import Outcome, score_call
 
 KNOWN = ["Sharma", "Verma", "Gupta", "Yadav", "Varma"]
@@ -58,8 +61,18 @@ def test_a_bill_paid_in_part_is_scored_on_the_rest():
 
 def test_a_part_paid_that_was_never_said_is_caught_not_wrong():
     r = row(text=PART_PAID, amount_paise="15000")
-    s = score_call(r, "add_credit", part_paid("teen sau"), known_customers=KNOWN, utterance=PART_PAID)
+    s = score_call(r, "add_credit", part_paid("teen sau"), known_customers=KNOWN, utterance=PART_PAID,
+                   fixes=replace(ALL, part_paid=False))
     assert s.outcome is Outcome.CAUGHT
+
+
+def test_the_bill_alone_is_wrong_before_fix_6_and_correct_after():
+    """What real Evon proposes for a part-paid bill (D-049): the whole bill as credit."""
+    r = row(text=PART_PAID, amount_paise="15000")
+    bill_only = {"customer_name": "Sharma ji", "amount_spoken": "saadhe chhe sau"}
+    assert score_call(r, "add_credit", bill_only, known_customers=KNOWN, utterance=PART_PAID).correct
+    before = score_call(r, "add_credit", bill_only, known_customers=KNOWN, utterance=PART_PAID, fixes=NONE)
+    assert before.outcome is Outcome.WRONG
 
 
 def test_digits_that_parse_to_the_right_amount_are_correct_but_flagged():

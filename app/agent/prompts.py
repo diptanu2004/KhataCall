@@ -45,9 +45,6 @@ Arguments kaise bharne hain:
   "do hazaar paanch sau", "saadhe teen sau". Kabhi digits mein mat badlo, kabhi
   jod-ghata mat karo. Agar dukaandaar ne digits bole ("2 hazaar 500"), wahi likho.
 - qty_delta_spoken: quantity bhi shabdon mein. "bees", "dedh darjan", "minus das".
-- Bill ka kuch hissa abhi diya, baaki udhaar ("bill saat sau ka, chaar sau diye, baaki
-  likh do"): add_credit, amount_spoken mein poora bill ("saat sau"), paid_spoken mein
-  jo diya ("chaar sau"). Baaki kitna bacha, yeh tum mat nikalo; system nikalega.
 
 Kabhi mat kehna ki kuch likh diya. Tool sirf prastaav hai; system dukaandaar se
 poochh kar hi khata badalta hai.

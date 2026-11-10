@@ -68,9 +68,11 @@ SCENARIOS: tuple[Scenario, ...] = (
     Scenario(
         "a bill paid in part, the rest on credit",
         (
+            # What real Evon proposes (Nov 10): the bill only. The part paid is read from
+            # the owner's words in code (fix 6, D-049).
             Turn("Mehra ji ka bill saadhe chhe sau ka hua, paanch sau diye, baaki khate mein likh do",
                  "Mehra ji ka bill 650 rupaye, 500 rupaye mile. Baaki 150 rupaye udhaar likh doon?",
-                 "add_credit", _credit("Mehra ji", "saadhe chhe sau", paid_spoken="paanch sau")),
+                 "add_credit", _credit("Mehra ji", "saadhe chhe sau")),
             Turn("haan ji", "Likh diya. Mehra ji ka ab 350 rupaye baaki hai."),
         ),
     ),
@@ -79,7 +81,7 @@ SCENARIOS: tuple[Scenario, ...] = (
         (
             Turn("Mehra ji ne paanch sau diye, bill saadhe chhe sau ka tha, baaki khate mein likh do",
                  "Mehra ji ka bill 650 rupaye, 500 rupaye mile. Baaki ek paanch shunya, 150 rupaye udhaar likh doon?",
-                 "add_credit", _credit("Mehra ji", "saadhe chhe sau", paid_spoken="paanch sau")),
+                 "add_credit", _credit("Mehra ji", "saadhe chhe sau")),
             Turn("haan", "Likh diya. Mehra ji ka ab 350 rupaye baaki hai."),
         ),
         phone_line=True,

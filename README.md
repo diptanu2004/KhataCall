@@ -26,7 +26,7 @@ pipeline holds up on degraded telephone audio.
   a "haan" that confirms an entry takes **0.60 s**.
 - **Built for a phone.** Checked at seven screen sizes in Chrome with real touch events.
 - **Rs 102** of the Rs 5,000 API credit grant spent on the whole project.
-  783 offline tests.
+  815 offline tests.
 
 ## Which Gnani model does what
 
@@ -76,7 +76,7 @@ FAKE_LLM=true uv run uvicorn app.main:app   # real Prisma and Timbre, canned Evo
   [docs/DEMO.md](docs/DEMO.md) is the 60-second demo, step by step.
 
 ```bash
-uv run pytest -q                            # 783 tests, no network
+uv run pytest -q                            # 815 tests, no network
 uv run python -m scripts.ui_check           # the page in phone-sized Chrome, real touch events
 ```
 
@@ -85,7 +85,7 @@ uv run python -m scripts.ui_check           # the page in phone-sized Chrome, re
 | Say something like | Tool | Writes? |
 |---|---|---|
 | "Gupta aunty ka dhai sau udhaar likho" | `add_credit` | yes, after the owner confirms |
-| "Mehra ji ka bill saadhe chhe sau, paanch sau diye, baaki likh do" | `add_credit` with the part paid | yes: Rs 150, the rest, after the owner confirms |
+| "Mehra ji ka bill saadhe chhe sau, paanch sau diye, baaki likh do" | `add_credit`; code reads the bill and the part paid from the words | yes: Rs 150, the rest, after the owner confirms |
 | "Verma bhaiya ne saadhe teen sau diye" | `record_payment` | yes, after the owner confirms |
 | "Sharma ji ka kitna baaki hai?" | `get_balance` | no |
 | "Parle-G ke bees packet aaye" | `update_stock` | yes, after the owner confirms |
@@ -109,9 +109,10 @@ and the owner's trust.
 - **The read-back is built from the values that will be saved,** not from
   Evon's words. What the owner approves is exactly what is written.
 - **Arithmetic is code too.** For a bill paid in part ("bill saadhe chhe sau,
-  paanch sau diye, baaki likh do"), Evon passes both amounts as spoken. The code
-  subtracts, checks that the owner said both numbers, and reads back all three:
-  "Mehra ji ka bill 650 rupaye, 500 rupaye mile. Baaki 150 rupaye udhaar likh doon?"
+  paanch sau diye, baaki likh do"), the code reads both amounts from the owner's
+  words, subtracts, and reads back all three: "Mehra ji ka bill 650 rupaye, 500
+  rupaye mile. Baaki 150 rupaye udhaar likh doon?" Evon was asked to pass the part
+  paid itself and never did, in 36 tries (D-049).
 - **A yes must be only a yes.** "Haan ji likh do" confirms. "Gupta ji ka do sau
   likho", said while Sharma ji's entry waits, is a new instruction, not agreement.
   A new customer is named in the read-back, so creating one is confirmed too.
@@ -126,7 +127,7 @@ flowchart LR
     subgraph server["KhataCall: one FastAPI process"]
         ws["WebSocket session<br/>push-to-talk state machine"]
         chan["Phone-line simulator<br/>noise, GSM + G.711, packet loss"]
-        exec["Executor + confirmation gate<br/>+ the five fixes"]
+        exec["Executor + confirmation gate<br/>+ the fixes"]
         nlu["Number and name parsing<br/>(deterministic code)"]
         db[("SQLite<br/>ledger + stock")]
     end
@@ -147,7 +148,7 @@ flowchart LR
 
 The full design is in [docs/HLD.md](docs/HLD.md). The reasoning behind every
 choice, with the numbers that settled it, is in [DECISIONS.md](DECISIONS.md)
-(48 entries).
+(49 entries).
 
 ## Evaluation: does it still work on a bad phone line?
 
@@ -256,6 +257,10 @@ nothing to re-run and nothing else changes between the two.
 | 3. Unit quantities | "paanch kilo" and "do bori" parse as 5 and 2 | 7 of 30 stock updates were refused |
 | 4. Heard check | the number Evon passes must be one the owner said | on a fragment, Evon filled in the example from its own prompt ("dedh sau") |
 | 5. Name check | the customer Evon names must be one the owner said | when noise swallowed the name, Evon supplied "Sharma", also from its prompt |
+
+A sixth was added after the eval, for the demo: a bill paid in part is read from the
+owner's words (D-049). It fires on none of the 180 corpus sentences and none of the
+2,160 cached transcripts, so the results above are unchanged.
 
 ### Reproducing it
 
@@ -409,7 +414,7 @@ shops would need:
 app/            the server
   adapters/     Prisma, Evon and Timbre clients (all Gnani-specific code), and fakes
   pipeline/     the per-call session: push-to-talk turns, latency timing
-  agent/        prompt, tool schemas, executor and confirmation gate, the five fixes
+  agent/        prompt, tool schemas, executor and confirmation gate, the six fixes
   nlu/          spoken numbers to paise, customer name matching
   ledger/       SQLite schema and repository
   channel/      the telephone channel simulation, shared by the demo and the eval
@@ -418,7 +423,7 @@ eval/           corpus labels, conditions, metrics, cached runner, charts, resul
 scripts/        smoke tests, latency, UI check, recorder, seed, spend meter
 deploy/         the Kaggle notebook that serves Evon
 docs/           design (HLD), Evon on Kaggle, noise
-tests/          783 offline tests (fakes only, never the network)
+tests/          815 offline tests (fakes only, never the network)
 ```
 
 ## Acknowledgements

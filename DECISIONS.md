@@ -1407,6 +1407,9 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
 ## D-048 — A bill paid in part: Evon passes both amounts, code subtracts
 - **Date:** 2026-11-10 · **Status:** Adopted after the freeze, on request: the demo needed a
   multi-step instruction ("Mehra ji's bill is 650, he paid 500, put the rest on his account").
+  **Superseded in part by D-049 the same day:** real Evon never filled `paid_spoken`, so code
+  now reads both amounts from the transcript, and the prompt is back to the one measured.
+  The executor's handling below (checks, subtraction, read-back, note) is unchanged.
 - **What failed before:** the request needs one subtraction. Evon proposes one tool call with
   the amount as spoken, so it could only pass 650 (wrong), 500 (wrong), or 150 (its own
   arithmetic, which hard rule 7 forbids). The heard check (fix 4) rejects 150, because the
@@ -1441,3 +1444,56 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
   docs/DEMO.md promises. `tests/test_demo_scenarios.py` runs them offline, with each expected
   proposal standing in for Evon, so a wording change that would make the demo script lie fails
   a test. Mehra ji (Rs 200) joins the seed so the bill lands on an existing account.
+
+## D-049 — A bill paid in part is read from the owner's words (fix 6), not from Evon
+- **Date:** 2026-11-10 · **Status:** Adopted. Replaces how D-048 got the part paid.
+- **What happened:** the first run of `scripts.demo_check` against real Evon (Nov 10). 11 of
+  the 13 demo lines were right; both part-paid lines failed:
+  - *The bill said first:* Evon proposed `add_credit` with the bill and no `paid_spoken`, so
+    the read-back was "Mehra ji ke khate mein 650 rupaye udhaar likh doon?". That is a
+    confident wrong amount, stopped only by the owner's "nahi".
+  - *The part paid said first:* Evon wrote the call's arguments as its text reply, with no
+    tool name. The session would have spoken the JSON aloud.
+- **Measured before deciding:** six part-paid phrasings and six ordinary lines, twice each,
+  under three prompts (text only, self-hosted Evon, no credits):
+
+  | Prompt | `paid_spoken` filled | ordinary lines right |
+  |---|---|---|
+  | D-048's (a note under "Arguments") | 0 of 12 | 12 of 12 |
+  | the note moved up, next to the tool choice | 0 of 12 | 8 of 12 |
+  | that, plus the tool's own description | 0 of 12 | 10 of 12 |
+
+  Evon never filled the field. Moving the note up broke payments: "Verma ji ne teen sau
+  diye" became udhaar, the costliest mistake there is (D-039). Twice Evon passed the part
+  paid as the bill ("Gupta aunty ne do sau diye, bill paanch sau ka tha" became "do sau").
+- **Decision: fix 6, part-paid bill (`app/agent/fixes.py`).** Code reads both amounts from the
+  transcript, whatever Evon proposed, and acts only on the clear pattern:
+  - a word for the rest (*baaki*) and one that puts it on the book (*bill, likh, khate, udhaar*);
+  - exactly two amounts (`nlu/numbers.number_spans`), exactly one of them right before a
+    word for paying (*diye, de, mile, jama*), which is the part paid; the other is the bill;
+  - *baaki* not followed by an amount: "baaki dedh sau likh do" names the credit itself.
+
+  Anything else is Evon's proposal as before, with the read-back as the net. The proposal
+  becomes `add_credit` with the customer Evon named and the two amounts as spoken, and the
+  executor does what D-048 describes: subtraction in paise, a bill that is not more than
+  the part paid is asked again, all three numbers are read back.
+- **The prompt and the schema are back to the ones the held-out eval measured.**
+  `paid_spoken` stays on `AddCredit` for the executor, but it is hidden from the schema Evon
+  reads (`SkipJsonSchema`). The schema is identical to the evaluated one, and
+  `eval.run_eval --stages task --dry-run` finds all 764 cached Evon proposals under the
+  prompt fingerprint. So D-048's risk is gone: the live prompt is the measured prompt again,
+  and `evon_check --n 180` has nothing new to measure.
+- **The eval numbers are unchanged:** fix 6 fires on none of the 180 corpus sentences and on
+  none of the 2,160 cached Prisma transcripts. It sits behind the same switch (`NONE` turns it
+  off), so before and after stay comparable.
+- **A tool call written as text is never spoken.** In native mode, a text reply that starts
+  with `{` is parsed as a call if it names its tool; otherwise it is dropped, and the session
+  says "phir se boliye". Guessing the tool from the arguments would put Evon's job in code
+  without the information to do it.
+- **Result:** `scripts.demo_check` passed 13 of 13 against real Evon, twice in a row.
+- **Rejected:**
+  - *More prompting.* 0 of 36 across three prompts, and the best-placed attempt cost payments.
+  - *Let Evon do the subtraction.* Hard rule 7, and the heard check would rightly refuse it.
+- **Also, Nov 10:** a dead tunnel answered with Cloudflare's 530 HTML page, which went to the
+  phone screen as "Evon failed: [HTTP 530] <!doctype html>...". The adapter now says "the
+  tunnel is down, restart Evon on Kaggle" instead.

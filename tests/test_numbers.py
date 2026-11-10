@@ -12,6 +12,7 @@ import pytest
 from app.nlu.numbers import (
     MAX_RUPEES,
     normalise,
+    number_spans,
     parse_amount_paise,
     parse_number,
     parse_quantity,
@@ -22,6 +23,26 @@ def rupees(text: str):
     """The parsed amount in whole rupees, or None."""
     paise = parse_amount_paise(text)
     return None if paise is None else paise / 100
+
+
+def spans(text: str) -> list[str]:
+    tokens, found = number_spans(text)
+    return [" ".join(tokens[s:e]) for s, e in found]
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("bill saadhe chhe sau ka hua, paanch sau diye", ["saadhe chhe sau", "paanch sau"]),
+        ("saadhe chhe sau paanch sau", ["saadhe chhe sau", "paanch sau"]),  # two amounts side by side
+        ("teen sau rupaye pachaas", ["teen sau rupaye pachaas"]),  # filler inside one amount
+        ("ka total do hazaar paanch sau rupaye mile", ["do hazaar paanch sau"]),  # filler at the edges
+        ("bill 650 ka hua 500 diye", ["650", "500"]),
+        ("Sharma ji ka kitna baaki hai", []),
+    ],
+)
+def test_number_spans_find_each_amount_and_only_its_words(text, expected):
+    assert spans(text) == expected
 
 
 # --- spelling ---------------------------------------------------------------

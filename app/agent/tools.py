@@ -18,6 +18,7 @@ options in one shot.
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, BeforeValidator, Field, StringConstraints
+from pydantic.json_schema import SkipJsonSchema
 
 
 def _absent_if_null_word(value: object) -> object:
@@ -64,15 +65,10 @@ class AddCredit(BaseModel):
         )
     )
     note: OptionalSpoken = Field(default=None, max_length=200, description="What it was for, if said")
-    paid_spoken: OptionalSpoken = Field(
-        default=None,
-        max_length=60,
-        description=(
-            "Only when part of a bill was paid now and the rest goes on credit: the part paid, "
-            "exactly as spoken. amount_spoken is then the whole bill. Never work out the rest "
-            "yourself. Leave it out otherwise."
-        ),
-    )
+    # A bill paid in part: the part paid, as spoken; amount_spoken is then the whole bill.
+    # Filled by code from the transcript (app/agent/fixes.py, D-049), never by Evon, so
+    # it is left out of the schema Evon reads: asked to fill it, Evon never did (0 of 36).
+    paid_spoken: SkipJsonSchema[OptionalSpoken] = Field(default=None, max_length=60)
 
 
 class RecordPayment(BaseModel):
