@@ -371,7 +371,7 @@ come from the same commit and the same cached transcripts.
 
 **Mon Nov 9**
 - [ ] [human] Submit: demo, written explanation, models used, post links; nominate post #1 and the main post
-- [x] Final check: tests green, README links work, results committed (Nov 10: 815 pass;
+- [x] Final check: tests green, README links work, results committed (Nov 10: 823 pass;
       `scripts.demo_check` 13/13 on real Evon; the repo is still private and 30+ commits ahead
       of GitHub, so push it and give the judges access)
 

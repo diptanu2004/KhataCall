@@ -26,7 +26,7 @@ pipeline holds up on degraded telephone audio.
   a "haan" that confirms an entry takes **0.60 s**.
 - **Built for a phone.** Checked at seven screen sizes in Chrome with real touch events.
 - **Rs 102** of the Rs 5,000 API credit grant spent on the whole project.
-  815 offline tests.
+  823 offline tests.
 
 ## Which Gnani model does what
 
@@ -76,7 +76,7 @@ FAKE_LLM=true uv run uvicorn app.main:app   # real Prisma and Timbre, canned Evo
   [docs/DEMO.md](docs/DEMO.md) is the 60-second demo, step by step.
 
 ```bash
-uv run pytest -q                            # 815 tests, no network
+uv run pytest -q                            # 823 tests, no network
 uv run python -m scripts.ui_check           # the page in phone-sized Chrome, real touch events
 ```
 
@@ -148,7 +148,7 @@ flowchart LR
 
 The full design is in [docs/HLD.md](docs/HLD.md). The reasoning behind every
 choice, with the numbers that settled it, is in [DECISIONS.md](DECISIONS.md)
-(49 entries).
+(51 entries).
 
 ## Evaluation: does it still work on a bad phone line?
 
@@ -423,7 +423,7 @@ eval/           corpus labels, conditions, metrics, cached runner, charts, resul
 scripts/        smoke tests, latency, UI check, recorder, seed, spend meter
 deploy/         the Kaggle notebook that serves Evon
 docs/           design (HLD), Evon on Kaggle, noise
-tests/          815 offline tests (fakes only, never the network)
+tests/          823 offline tests (fakes only, never the network)
 ```
 
 ## Acknowledgements
