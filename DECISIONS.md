@@ -1403,3 +1403,41 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
     must say no.
   - "Sharmila" scores 85.7 against "Sharma ji", a confident match under D-023's thresholds.
     The read-back names Sharma ji, so the owner can refuse it.
+
+## D-048 — A bill paid in part: Evon passes both amounts, code subtracts
+- **Date:** 2026-11-10 · **Status:** Adopted after the freeze, on request: the demo needed a
+  multi-step instruction ("Mehra ji's bill is 650, he paid 500, put the rest on his account").
+- **What failed before:** the request needs one subtraction. Evon proposes one tool call with
+  the amount as spoken, so it could only pass 650 (wrong), 500 (wrong), or 150 (its own
+  arithmetic, which hard rule 7 forbids). The heard check (fix 4) rejects 150, because the
+  owner never said it, and the agent asked "Kitne rupaye?". Safe, but no help.
+- **Decision:** `add_credit` takes an optional `paid_spoken`. Evon copies both amounts as
+  spoken: the whole bill in `amount_spoken` and the part paid in `paid_spoken`. The executor
+  then works as follows:
+  - it parses both and applies the heard check to each;
+  - it refuses a part paid that is not strictly less than the bill, and asks again;
+  - it subtracts in integer paise;
+  - it reads back all three numbers ("Mehra ji ka bill 650 rupaye, 500 rupaye mile. Baaki 150
+    rupaye udhaar likh doon?"), so the owner checks the arithmetic, not just the result;
+  - in phone mode it spells out the amount that will be written;
+  - the bill and the part paid go in the entry's note, so the book keeps where 150 came from.
+- **Rejected:**
+  - *Let Evon do the arithmetic and relax the heard check for differences of heard numbers.*
+    That puts the LLM back in charge of a number, and the code check would be a bolt-on.
+  - *A separate tool.* A seventh near-identical choice makes every money turn harder to choose.
+  - *Write a credit of 650 and a payment of 500.* The balance ends the same, but it takes two
+    writes for one "haan", and a history full of round trips.
+- **The payment guard (fix 1) skips a proposal that carries `paid_spoken`.** "Mehra ji ne paanch
+  sau diye, bill saadhe chhe sau ka tha, baaki khate mein likh do" reads as a payment, and
+  swapping would book the whole bill as paid. The eval scorer (`eval/metrics.py`) mirrors the
+  executor, so a part-paid proposal is scored on the rest.
+- **The risk, stated:** the tool schema and the prompt changed after the held-out eval, so the
+  live agent's prompt is no longer the one measured. The prompt's example deliberately uses no
+  name, because Evon has copied prompt examples into proposals before (D-043, D-045).
+  - *Check 1:* `scripts.evon_check --n 180` (text, no credits), against D-031's 92.2%.
+  - *Check 2:* `scripts.demo_check`, which runs the demo's 13 scenarios through real Evon.
+  - Neither has run yet: Evon was down when this was built.
+- **Demo scenarios as tests:** `scripts/demo_check.py` holds the demo's lines and the replies
+  docs/DEMO.md promises. `tests/test_demo_scenarios.py` runs them offline, with each expected
+  proposal standing in for Evon, so a wording change that would make the demo script lie fails
+  a test. Mehra ji (Rs 200) joins the seed so the bill lands on an existing account.

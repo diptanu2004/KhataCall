@@ -64,6 +64,15 @@ class AddCredit(BaseModel):
         )
     )
     note: OptionalSpoken = Field(default=None, max_length=200, description="What it was for, if said")
+    paid_spoken: OptionalSpoken = Field(
+        default=None,
+        max_length=60,
+        description=(
+            "Only when part of a bill was paid now and the rest goes on credit: the part paid, "
+            "exactly as spoken. amount_spoken is then the whole bill. Never work out the rest "
+            "yourself. Leave it out otherwise."
+        ),
+    )
 
 
 class RecordPayment(BaseModel):

@@ -102,6 +102,7 @@ uv run python -m scripts.seed                   # fill the ledger with a synthet
 uv run python -m scripts.seed --reset           # wipe and recreate it
 uv run python deploy/make_kaggle_notebook.py    # regenerate the Kaggle notebook that serves Evon
 uv run python -m scripts.evon_check            # is Evon up, and how good are its tool calls? (no credits)
+uv run python -m scripts.demo_check            # the demo's lines through real Evon as text (no credits)
 USE_FAKES=true uv run uvicorn app.main:app      # run the whole UI with no API calls
 FAKE_LLM=true uv run uvicorn app.main:app       # real Prisma + Timbre, canned Evon
 DB_PATH=scripts/out/demo.db uv run uvicorn app.main:app --port 8010 --reload --reload-include .env
@@ -182,7 +183,7 @@ of this in phone-sized Chrome.
 ### Agent tools (`agent/tools.py`)
 | Tool | Args | Writes? |
 |---|---|---|
-| `add_credit` | customer_name, amount_spoken, note? | yes |
+| `add_credit` | customer_name, amount_spoken, note?, paid_spoken? (a bill paid in part, D-048) | yes |
 | `record_payment` | customer_name, amount_spoken | yes |
 | `get_balance` | customer_name | no |
 | `update_stock` | item, qty_delta_spoken | yes |
@@ -370,7 +371,7 @@ come from the same commit and the same cached transcripts.
 
 **Mon Nov 9**
 - [ ] [human] Submit: demo, written explanation, models used, post links; nominate post #1 and the main post
-- [x] Final check: tests green, README links work, results committed (Nov 10: 740 pass;
+- [x] Final check: tests green, README links work, results committed (Nov 10: 783 pass;
       the repo is still private and 29+ commits ahead of GitHub, so push it and give the judges access)
 
 **Tue Nov 10 — deadline.** Emergency fixes only; the submission is already in.

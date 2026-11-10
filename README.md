@@ -26,7 +26,7 @@ pipeline holds up on degraded telephone audio.
   a "haan" that confirms an entry takes **0.60 s**.
 - **Built for a phone.** Checked at seven screen sizes in Chrome with real touch events.
 - **Rs 102** of the Rs 5,000 API credit grant spent on the whole project.
-  740 offline tests.
+  783 offline tests.
 
 ## Which Gnani model does what
 
@@ -45,7 +45,7 @@ You need Python 3.11+, [uv](https://docs.astral.sh/uv/) and a browser. No API ke
 ```bash
 git clone https://github.com/diptanu2004/KhataCall.git khatacall && cd khatacall
 uv sync
-uv run python -m scripts.seed               # a made-up shop: 8 customers, 12 items
+uv run python -m scripts.seed               # a made-up shop: 9 customers, 12 items
 USE_FAKES=true uv run uvicorn app.main:app  # http://localhost:8000
 ```
 
@@ -76,7 +76,7 @@ FAKE_LLM=true uv run uvicorn app.main:app   # real Prisma and Timbre, canned Evo
   [docs/DEMO.md](docs/DEMO.md) is the 60-second demo, step by step.
 
 ```bash
-uv run pytest -q                            # 740 tests, no network
+uv run pytest -q                            # 783 tests, no network
 uv run python -m scripts.ui_check           # the page in phone-sized Chrome, real touch events
 ```
 
@@ -85,6 +85,7 @@ uv run python -m scripts.ui_check           # the page in phone-sized Chrome, re
 | Say something like | Tool | Writes? |
 |---|---|---|
 | "Gupta aunty ka dhai sau udhaar likho" | `add_credit` | yes, after the owner confirms |
+| "Mehra ji ka bill saadhe chhe sau, paanch sau diye, baaki likh do" | `add_credit` with the part paid | yes: Rs 150, the rest, after the owner confirms |
 | "Verma bhaiya ne saadhe teen sau diye" | `record_payment` | yes, after the owner confirms |
 | "Sharma ji ka kitna baaki hai?" | `get_balance` | no |
 | "Parle-G ke bees packet aaye" | `update_stock` | yes, after the owner confirms |
@@ -107,6 +108,10 @@ and the owner's trust.
   three"), is asked again, never guessed.
 - **The read-back is built from the values that will be saved,** not from
   Evon's words. What the owner approves is exactly what is written.
+- **Arithmetic is code too.** For a bill paid in part ("bill saadhe chhe sau,
+  paanch sau diye, baaki likh do"), Evon passes both amounts as spoken. The code
+  subtracts, checks that the owner said both numbers, and reads back all three:
+  "Mehra ji ka bill 650 rupaye, 500 rupaye mile. Baaki 150 rupaye udhaar likh doon?"
 - **A yes must be only a yes.** "Haan ji likh do" confirms. "Gupta ji ka do sau
   likho", said while Sharma ji's entry waits, is a new instruction, not agreement.
   A new customer is named in the read-back, so creating one is confirmed too.
@@ -142,7 +147,7 @@ flowchart LR
 
 The full design is in [docs/HLD.md](docs/HLD.md). The reasoning behind every
 choice, with the numbers that settled it, is in [DECISIONS.md](DECISIONS.md)
-(47 entries).
+(48 entries).
 
 ## Evaluation: does it still work on a bad phone line?
 
@@ -413,7 +418,7 @@ eval/           corpus labels, conditions, metrics, cached runner, charts, resul
 scripts/        smoke tests, latency, UI check, recorder, seed, spend meter
 deploy/         the Kaggle notebook that serves Evon
 docs/           design (HLD), Evon on Kaggle, noise
-tests/          740 offline tests (fakes only, never the network)
+tests/          783 offline tests (fakes only, never the network)
 ```
 
 ## Acknowledgements

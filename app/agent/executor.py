@@ -229,6 +229,19 @@ class Executor:
             # Never guess an amount, and never take one the owner did not say.
             return self._say("Amount samajh nahi aaya. Kitne rupaye?")
 
+        # A bill paid in part ("bill saadhe chhe sau, paanch sau diye, baaki likh do"):
+        # Evon hands over both amounts as spoken and the subtraction happens here, in
+        # code (hard rule 7). Both must have been heard, and the read-back says all
+        # three numbers so the owner can check the arithmetic too.
+        bill = paid = None
+        if call.name == "add_credit" and getattr(args, "paid_spoken", None):
+            paid = parse_amount_paise(args.paid_spoken, spelling_fixes=self.fixes.number_spellings)
+            if paid is None or not self._heard(Fraction(paid, 100)):
+                return self._say("Kitne diye? Amount samajh nahi aaya.")
+            if not 0 < paid < paise:
+                return self._say("Bill kitne ka tha, aur kitne diye? Phir se boliye.")
+            bill, paise = paise, paise - paid
+
         if not self._name_heard(args.customer_name):
             return self._say("Kiska khata? Naam phir se boliye.")
         resolved = self._resolve_customer(args.customer_name)
@@ -241,7 +254,15 @@ class Executor:
         amount = rupees(paise)
         if self.spell_amounts:
             amount = f"{spell_digits(paise)}, {amount}"
-        question = f"{preamble}{display_name} ke khate mein {amount} {verb}?"
+        note = getattr(args, "note", None)
+        if bill is not None and paid is not None:
+            question = (
+                f"{preamble}{display_name} ka bill {rupees(bill)}, {rupees(paid)} mile. "
+                f"Baaki {amount} udhaar likh doon?"
+            )
+            note = note or f"bill {rupees(bill)}, {rupees(paid)} mile"
+        else:
+            question = f"{preamble}{display_name} ke khate mein {amount} {verb}?"
 
         self._pending = _Pending(
             call=call,
@@ -249,7 +270,7 @@ class Executor:
             customer_id=customer_id,
             new_customer_name=display_name if is_new else None,
             amount_paise=paise,
-            note=getattr(args, "note", None),
+            note=note,
         )
         return Reply(question, Outcome.CONFIRMING)
 

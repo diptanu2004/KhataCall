@@ -30,6 +30,7 @@ CUSTOMERS: list[tuple[str, list[tuple[str, int, str | None]]]] = [
     ("Joshi uncle", [("credit", 300, None), ("payment", 400, None)]),  # overpaid
     ("Rawat ji", [("credit", 80, "namak")]),
     ("Chauhan bhai", [("credit", 5000, "thok order"), ("payment", 2500, None)]),
+    ("Mehra ji", [("credit", 200, "doodh aur bread")]),  # the demo's part-paid bill lands here
 ]
 
 # (name, unit, quantity, reorder threshold)

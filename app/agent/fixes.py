@@ -24,7 +24,7 @@ from rapidfuzz import fuzz
 from app.nlu.names import strip_honorifics
 from app.nlu.numbers import heard_values, normalise
 
-__all__ = ["ALL", "NONE", "Fixes", "apply_to_proposal", "money_direction", "name_was_heard", "was_heard"]
+__all__ = ["ALL", "NONE", "Fixes", "apply_to_proposal", "filled", "money_direction", "name_was_heard", "was_heard"]
 
 
 @dataclass(frozen=True)
@@ -112,6 +112,11 @@ def name_was_heard(name: str, context: str) -> bool:
     return all(any(fuzz.ratio(part, w) >= NAME_HEARD for w in words) for part in parts)
 
 
+def filled(value: Any) -> bool:
+    """An optional argument Evon actually filled ("None" and "" are how it says it did not)."""
+    return isinstance(value, str) and value.strip().lower() not in ("", "none", "null", "nil", "undefined")
+
+
 def apply_to_proposal(
     fixes: Fixes, utterance: str, tool: str | None, arguments: dict[str, Any] | None
 ) -> tuple[str | None, dict[str, Any] | None, str | None]:
@@ -122,6 +127,10 @@ def apply_to_proposal(
     written, so a wrong swap is caught exactly as a wrong proposal would be.
     """
     if not fixes.payment_guard or tool not in ("add_credit", "record_payment") or arguments is None:
+        return tool, arguments, None
+    if tool == "add_credit" and filled(arguments.get("paid_spoken")):
+        # A bill paid in part: "ne paanch sau diye" is the part paid, already in the
+        # proposal. Swapping to a payment would drop it and book the whole bill as paid.
         return tool, arguments, None
     direction = money_direction(utterance)
     wanted = {"payment": "record_payment", "credit": "add_credit"}.get(direction or "")

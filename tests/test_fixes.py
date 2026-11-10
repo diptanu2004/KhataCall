@@ -60,6 +60,18 @@ def test_the_guard_swaps_credit_for_payment_and_keeps_the_amount_as_spoken():
     assert "payment guard" in changed
 
 
+def test_the_guard_leaves_a_bill_paid_in_part_alone():
+    # "ne paanch sau diye" is the part paid, already carried in paid_spoken.
+    args = {"customer_name": "mehra ji", "amount_spoken": "saadhe chhe sau", "paid_spoken": "paanch sau"}
+    utterance = "mehra ji ne paanch sau diye bill saadhe chhe sau ka tha baaki khate mein likh do"
+    assert apply_to_proposal(ALL, utterance, "add_credit", args) == ("add_credit", args, None)
+
+
+def test_a_null_word_for_the_part_paid_does_not_stop_the_guard():
+    args = {"customer_name": "verma bhaiya", "amount_spoken": "sadhe teen sau", "paid_spoken": "None"}
+    assert apply_to_proposal(ALL, "verma bhaiya ne sadhe teen sau die", "add_credit", args)[0] == "record_payment"
+
+
 def test_the_guard_never_touches_other_tools_or_runs_when_switched_off():
     utterance = "verma bhaiya ne sadhe teen sau die"
     assert apply_to_proposal(ALL, utterance, "get_balance", {"customer_name": "verma"})[2] is None

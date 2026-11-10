@@ -29,7 +29,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from app.agent.fixes import ALL, Fixes, apply_to_proposal, name_was_heard, was_heard
+from app.agent.fixes import ALL, Fixes, apply_to_proposal, filled, name_was_heard, was_heard
 from app.agent.tools import args_model_for
 from app.nlu.names import Decision, has_real_name, match_name
 from app.nlu.numbers import normalise, parse_amount_paise, parse_number, parse_signed_quantity
@@ -153,19 +153,31 @@ def score_call(
     if row.get("amount_paise"):
         spoken = str(args.get("amount_spoken") or "")
         paise = parse_amount_paise(spoken, spelling_fixes=spelling) if spoken else None
-        details["amount_paise"] = paise
         converted = _has_digits(spoken) and not _has_digits(row["text"])
         heard_check = fixes.heard_check and utterance is not None
+        # A bill paid in part: the executor checks the bill, then writes bill minus paid.
+        paid_spoken = args.get("paid_spoken") if tool_name == "add_credit" else None
+        paid = parse_amount_paise(str(paid_spoken), spelling_fixes=spelling) if filled(paid_spoken) else None
         if paise is None:
             amount_ok = False
             caught.append("amount unparseable")
         elif heard_check and not was_heard(Fraction(paise, 100), utterance, spelling_fixes=spelling):
             amount_ok = False
             caught.append(f"amount not heard: {spoken}")  # the executor asks again
+        elif filled(paid_spoken) and (
+            paid is None
+            or (heard_check and not was_heard(Fraction(paid, 100), utterance, spelling_fixes=spelling))
+            or not 0 < paid < paise
+        ):
+            amount_ok = False
+            caught.append(f"part paid not usable: {paid_spoken}")  # the executor asks again
         else:
+            if paid is not None:
+                paise -= paid
             amount_ok = paise == int(row["amount_paise"])
             if not amount_ok:
                 reasons.append(f"amount {paise} instead of {row['amount_paise']}")
+        details["amount_paise"] = paise
 
     # --- stock ---
     if row.get("item"):

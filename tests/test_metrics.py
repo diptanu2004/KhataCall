@@ -43,6 +43,25 @@ def test_an_honorific_variant_still_reaches_the_right_customer():
     assert score(row(), credit(customer="Sharma bhaiya")).correct
 
 
+# A bill paid in part is scored as the executor writes it: the bill minus what was paid.
+PART_PAID = "Sharma ji ka bill saadhe chhe sau ka hua, paanch sau diye, baaki likh do"
+
+
+def part_paid(paid: str) -> dict[str, str]:
+    return {"customer_name": "Sharma ji", "amount_spoken": "saadhe chhe sau", "paid_spoken": paid}
+
+
+def test_a_bill_paid_in_part_is_scored_on_the_rest():
+    r = row(text=PART_PAID, amount_paise="15000")
+    assert score_call(r, "add_credit", part_paid("paanch sau"), known_customers=KNOWN, utterance=PART_PAID).correct
+
+
+def test_a_part_paid_that_was_never_said_is_caught_not_wrong():
+    r = row(text=PART_PAID, amount_paise="15000")
+    s = score_call(r, "add_credit", part_paid("teen sau"), known_customers=KNOWN, utterance=PART_PAID)
+    assert s.outcome is Outcome.CAUGHT
+
+
 def test_digits_that_parse_to_the_right_amount_are_correct_but_flagged():
     """Rule 7 says the model should not convert. The right number still lands,
     so it is correct - but the conversion is counted, because it is luck."""

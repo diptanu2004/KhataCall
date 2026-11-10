@@ -7,8 +7,14 @@ and the ledger updates. Then the chart shows the measured result behind it.
 ## Before you start (about 15 minutes, most of it Evon)
 
 1. **Start Evon on Kaggle** ([EVON_KAGGLE.md](EVON_KAGGLE.md), about 10 minutes)
-   and put its new address in `.env`. Check it with `uv run python -m scripts.evon_check`.
-2. **A fresh ledger** (Sharma ji owes Rs 400):
+   and put its new address in `.env`. Then run the demo's lines through it as text
+   (no credits, about a minute) and check every scenario says `ok`:
+
+   ```bash
+   uv run python -m scripts.demo_check
+   ```
+
+2. **A fresh ledger** (Sharma ji owes Rs 400, Mehra ji Rs 200):
 
    ```bash
    uv run python -m scripts.seed --reset --db scripts/out/demo.db
@@ -61,6 +67,38 @@ and the ledger updates. Then the chart shows the measured result behind it.
 
 The chart is a separate shot: screen-record it on the laptop, or open it on the
 phone from the repo, and join the clips.
+
+**To show a multi-step instruction instead,** swap 0:12-0:37 for the Mehra ji bill
+below. With phone-line mode on, the read-back gives all three numbers and spells out
+the one that will be written: "Mehra ji ka bill 650 rupaye, 500 rupaye mile. Baaki ek
+paanch shunya, 150 rupaye udhaar likh doon?" Then "haan" gives "Likh diya. Mehra ji ka
+ab 350 rupaye baaki hai." *Voice-over:* "Evon passes both amounts as spoken; the
+subtraction is done in code, and the owner hears all three numbers."
+
+## More lines to try
+
+Each line below gets exactly the reply shown, pinned by a test
+(`tests/test_demo_scenarios.py`). Start from a fresh ledger and say each one once,
+in any order; the two Mehra ji lines are alternatives, so say only one of them. With
+phone-line mode on, the amount that will be written is also spelled out digit by digit.
+
+| Say | KhataCall answers | Then |
+|---|---|---|
+| "Mehra ji ka bill saadhe chhe sau ka hua, paanch sau diye, baaki khate mein likh do" | "Mehra ji ka bill 650 rupaye, 500 rupaye mile. Baaki 150 rupaye udhaar likh doon?" | "haan ji" → "Likh diya. Mehra ji ka ab 350 rupaye baaki hai." |
+| "Mehra ji ne paanch sau diye, bill saadhe chhe sau ka tha, baaki khate mein likh do" | the same read-back: the order does not matter, and "ne ... diye" does not turn it into a payment | "haan" → "Likh diya. Mehra ji ka ab 350 rupaye baaki hai." |
+| "Yadav ji ka kitna baaki hai?" | "Yadav ji ka 1,500 rupaye baaki hai." | |
+| "Gupta aunty ka hisaab batao" | "Gupta aunty ka hisaab chukta hai." | |
+| "Joshi uncle ka kitna baaki hai?" | "Joshi uncle ke 100 rupaye jama hain." (he paid ahead) | |
+| "Chauhan bhai ne ek hazaar diye" | "Chauhan bhai ke khate mein 1,000 rupaye jama kar doon?" | "haan" → "Likh diya. Chauhan bhai ka ab 1,500 rupaye baaki hai." |
+| "Verma bhaiya ka do sau likho" | "Verma bhaiya ke khate mein 200 rupaye udhaar likh doon?" | "nahi" → "Theek hai, nahi likha." Then "Verma bhaiya ka kitna baaki hai?" → still "350 rupaye baaki hai." |
+| "Kapoor ji ka teen sau udhaar likho" | "Kapoor ji naya customer hai. Kapoor ji ke khate mein 300 rupaye udhaar likh doon?" | "haan" → "Likh diya. Kapoor ji ka ab 300 rupaye baaki hai." |
+| "Maggi kitni bachi hai?" | "Maggi 12 packet bachi hai." | |
+| "Kya kya khatam hone wala hai?" | "Ye kam hain: tel 9 litre, Maggi 12 packet." | |
+| "Parle-G ke bees packet aaye" | "Parle-G ke 20 packet aaye, likh doon?" | "haan" → "Likh diya. Parle-G ab 68 packet." |
+| "Paanch kilo chini bik gayi" | "chini ke 5 kilo nikal gaye, likh doon?" | "haan" → "Likh diya. chini ab 25 kilo." |
+
+The tests pin what the code says once Evon has proposed the call. Whether Evon
+proposes it is what `scripts.demo_check` checks against the real model.
 
 ## If a take goes wrong
 

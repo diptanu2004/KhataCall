@@ -166,6 +166,51 @@ def test_phone_mode_spells_the_amount_out(seeded):
     assert "150 rupaye" in asked.speech
 
 
+# --- a bill paid in part: Evon hands over both amounts, code subtracts ----------
+
+PART_PAID = "Sharma ji ka bill saadhe chhe sau ka hua, paanch sau diye, baaki likh do"
+
+
+def part_paid(bill="saadhe chhe sau", paid="paanch sau"):
+    return call("add_credit", customer_name="Sharma ji", amount_spoken=bill, paid_spoken=paid)
+
+
+def test_a_bill_paid_in_part_puts_only_the_rest_on_credit(agent, seeded):
+    sharma = seeded.find_customer("Sharma ji")
+    asked = agent.handle(part_paid(), utterance=PART_PAID)
+    assert asked.outcome is Outcome.CONFIRMING
+    assert asked.speech == "Sharma ji ka bill 650 rupaye, 500 rupaye mile. Baaki 150 rupaye udhaar likh doon?"
+    assert seeded.balance_paise(sharma.id) == 100_000, "nothing may be written before yes"
+
+    assert agent.handle_user_text("haan").outcome is Outcome.COMMITTED
+    assert seeded.balance_paise(sharma.id) == 115_000
+    assert seeded.entries(sharma.id)[0]["note"] == "bill 650 rupaye, 500 rupaye mile"
+
+
+def test_phone_mode_spells_out_the_amount_that_will_be_written(seeded):
+    asked = Executor(seeded, spell_amounts=True).handle(part_paid(), utterance=PART_PAID)
+    assert "Baaki ek paanch shunya, 150 rupaye udhaar" in asked.speech
+
+
+def test_the_part_paid_must_be_one_the_owner_said(agent):
+    reply = agent.handle(part_paid(paid="teen sau"), utterance=PART_PAID)
+    assert reply.speech == "Kitne diye? Amount samajh nahi aaya."
+    assert not agent.has_pending
+
+
+@pytest.mark.parametrize("bill, paid", [("paanch sau", "paanch sau"), ("paanch sau", "saadhe chhe sau")])
+def test_paying_the_whole_bill_or_more_is_asked_again_not_subtracted(agent, bill, paid):
+    reply = agent.handle(part_paid(bill=bill, paid=paid), utterance=PART_PAID)
+    assert reply.speech == "Bill kitne ka tha, aur kitne diye? Phir se boliye."
+    assert not agent.has_pending
+
+
+def test_a_null_word_for_the_part_paid_is_an_ordinary_credit(agent):
+    assert agent.handle(part_paid(bill="dedh sau", paid="None")).speech == (
+        "Sharma ji ke khate mein 150 rupaye udhaar likh doon?"
+    )
+
+
 def test_spell_digits_and_rupees():
     assert spell_digits(15_000) == "ek paanch shunya"
     assert rupees(15_000) == "150 rupaye"
