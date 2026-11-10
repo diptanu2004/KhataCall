@@ -1573,3 +1573,27 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
   ~45 ms with no pauses; at 0.5x it starts after 2.0 s, also with no pauses. The fix for the
   demo is the tunnel: docs/DEMO.md now uses Cloudflare's quick tunnel. *Rejected for now:*
   μ-law over the socket. It halves the bytes, but a link at half speed would only just keep up.
+
+## D-052 — A slow Gnani handshake gets a second attempt alongside it
+- **Date:** 2026-11-10 · **Status:** Adopted, after a turn on the phone failed with "timed out
+  during opening handshake".
+- **Measured from the demo laptop** (sockets opened and closed, nothing sent):
+  - DNS 60 ms, TCP 68 ms, TLS 0.15-0.5 s, every time;
+  - the WebSocket upgrade after that: Timbre 1.0, **17.6**, 2.1, 1.6, 2.3, 1.3, 0.5, 1.3 s;
+    Prisma 5.7, 2.4, 0.6 s.
+
+  So the network and the laptop are fine, and the wait is Gnani's, one attempt at a time.
+  `websockets` gives up at 10 s, and the turn fails.
+- **Decision:** `gnani_common.open_hedged`, used by both Timbre and Prisma realtime. If a
+  socket has not opened after 2.5 s, a second attempt starts alongside it, and a third at
+  5 s. The first to open is used, and any other that opens later is closed at once, having
+  sent nothing. An attempt that fails starts the next immediately. A normal handshake is
+  untouched: it is the only attempt.
+- **Why 2.5 s:** normal upgrades took up to 2.3 s, so a backup starts only when something
+  is wrong. The worst case becomes about 2.5 s plus a normal handshake, not a 17 s wait or
+  a failed turn. Timbre's socket opens on press (D-046), which hides most of that.
+- **Cost:** none in credits. Timbre bills characters sent, and an extra Prisma socket is
+  closed before any audio reaches it. At most 3 sockets per open, well inside the limit of
+  20 concurrent.
+- **Checked:** unit tests with fake handshakes (`tests/test_gnani_hedged_open.py`). Against the
+  real sockets, 12 opens took 0.55-2.26 s; none was slow enough for a backup to start.

@@ -15,7 +15,7 @@ from typing import Any
 
 import websockets
 
-from app.adapters.gnani_common import API_KEY_HEADER, GnaniAPIError, require_key
+from app.adapters.gnani_common import API_KEY_HEADER, GnaniAPIError, open_hedged, require_key
 from app.adapters.usage import record_tts
 
 log = logging.getLogger(__name__)
@@ -73,7 +73,7 @@ class TimbreTTS:
     async def _open(self) -> tuple[AsyncExitStack, Any]:
         stack = AsyncExitStack()
         headers = {API_KEY_HEADER: require_key(self._api_key)}
-        ws = await stack.enter_async_context(self._connect(self._ws_url, additional_headers=headers))
+        ws = await open_hedged(stack, lambda: self._connect(self._ws_url, additional_headers=headers), what="Timbre")
         return stack, ws
 
     def _discard(self, spare: asyncio.Task) -> None:

@@ -33,14 +33,14 @@ import asyncio
 import json
 import time
 from collections.abc import AsyncIterator, Callable, Iterator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
 import websockets
 
 from app.adapters.base import AudioClip, Transcript
-from app.adapters.gnani_common import GnaniAPIError, require_key
+from app.adapters.gnani_common import GnaniAPIError, open_hedged, require_key
 from app.adapters.usage import record_stt
 
 FRAME_BYTES = 1024
@@ -331,7 +331,9 @@ class PrismaStreamingSTT:
         if sample_rate not in SUPPORTED_SAMPLE_RATES:
             raise ValueError(f"Prisma realtime accepts {SUPPORTED_SAMPLE_RATES}, got {sample_rate}")
         headers = self._headers(language, sample_rate)
-        async with self._connect(self._ws_url, additional_headers=headers) as ws:
+        async with AsyncExitStack() as stack:
+            ws = await open_hedged(stack, lambda: self._connect(self._ws_url, additional_headers=headers),
+                                   what="Prisma")
             session = LiveTranscription(
                 ws,
                 sample_rate=sample_rate,
