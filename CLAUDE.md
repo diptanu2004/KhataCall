@@ -104,6 +104,8 @@ uv run python deploy/make_kaggle_notebook.py    # regenerate the Kaggle notebook
 uv run python -m scripts.evon_check            # is Evon up, and how good are its tool calls? (no credits)
 USE_FAKES=true uv run uvicorn app.main:app      # run the whole UI with no API calls
 FAKE_LLM=true uv run uvicorn app.main:app       # real Prisma + Timbre, canned Evon
+DB_PATH=scripts/out/demo.db uv run uvicorn app.main:app --port 8010 --reload --reload-include .env
+                                                # the demo server: restarts when .env changes (docs/DEMO.md)
 uv run python -m eval.run_eval --dry-run        # count planned API calls
 uv run python -m eval.run_eval --max-calls 800  # run eval with a hard cap (default 200)
 uv run python -m eval.run_eval --stages task    # re-score cached transcripts with Evon (no credits)
@@ -348,16 +350,18 @@ come from the same commit and the same cached transcripts.
 - [x] README: results + charts, the 12-condition grid, latency with real Evon, setup < 5 min,
       known limitations, **Path to production** (concurrent calls, telephony integration,
       per-shop tenancy on Postgres, latency budgets)
-- [ ] Demo script + seeded demo database
+- [x] Demo script + seeded demo database → `docs/DEMO.md` (Nov 10); ledger from
+      `scripts.seed --reset --db scripts/out/demo.db`, Sharma ji at Rs 400
 - [x] Fresh-clone test: clone → `uv sync` → the UI runs with `USE_FAKES=true` in under 5 minutes
       (Nov 8: sync 14 s with a warm uv cache, tests and `ui_check` pass, no `.env` needed)
-- [ ] Draft the written explanation (which Gnani model does what, eval method, results)
+- [x] Draft the written explanation (which Gnani model does what, eval method, results)
+      → `docs/WRITEUP.md` (Nov 10), with a ~120-word short version for length-limited forms
 
 **Sat Nov 7**
 - [ ] [human] Rehearse, then record the 60-second demo with Evon up (noisy-line credit entry →
       digit read-back → "haan" → ledger updates → before/after chart)
 - [ ] [human] Main LinkedIn/X post, with the video
-- [ ] Interview prep notes from DECISIONS.md
+- [x] Interview prep notes from DECISIONS.md → `docs/INTERVIEW_PREP.md` (Nov 10, kept out of git)
 
 **Sun Nov 8 — Diwali.**
 - [x] Full audit + e2e run; UI rebuilt for phones (asked for: the owners will use a phone). Fixed a
@@ -366,7 +370,8 @@ come from the same commit and the same cached transcripts.
 
 **Mon Nov 9**
 - [ ] [human] Submit: demo, written explanation, models used, post links; nominate post #1 and the main post
-- [ ] Final check: tests green, README links work, results committed
+- [x] Final check: tests green, README links work, results committed (Nov 10: 740 pass;
+      the repo is still private and 29+ commits ahead of GitHub, so push it and give the judges access)
 
 **Tue Nov 10 — deadline.** Emergency fixes only; the submission is already in.
 

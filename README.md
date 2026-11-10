@@ -43,7 +43,7 @@ No other provider's model is used anywhere in the product.
 You need Python 3.11+, [uv](https://docs.astral.sh/uv/) and a browser. No API key is needed for this:
 
 ```bash
-git clone <repo-url> khatacall && cd khatacall
+git clone https://github.com/diptanu2004/KhataCall.git khatacall && cd khatacall
 uv sync
 uv run python -m scripts.seed               # a made-up shop: 8 customers, 12 items
 USE_FAKES=true uv run uvicorn app.main:app  # http://localhost:8000
@@ -70,8 +70,10 @@ FAKE_LLM=true uv run uvicorn app.main:app   # real Prisma and Timbre, canned Evo
   fetch: [docs/NOISE.md](docs/NOISE.md).
 - **On a phone:** phones allow the microphone only over https.
   `cloudflared tunnel --url http://localhost:8000` prints an https address you can
-  open on the phone. That address is public and has no login: anyone who has it
-  can spend your credits and edit the ledger.
+  open on the phone; `ssh -R 80:localhost:8000 nokey@localhost.run` does the same
+  with nothing to install. That address is public and has no login: anyone who
+  has it can spend your credits and edit the ledger.
+  [docs/DEMO.md](docs/DEMO.md) is the 60-second demo, step by step.
 
 ```bash
 uv run pytest -q                            # 740 tests, no network
