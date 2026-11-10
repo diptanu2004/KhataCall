@@ -1497,3 +1497,35 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
 - **Also, Nov 10:** a dead tunnel answered with Cloudflare's 530 HTML page, which went to the
   phone screen as "Evon failed: [HTTP 530] <!doctype html>...". The adapter now says "the
   tunnel is down, restart Evon on Kaggle" instead.
+
+## D-050 — Replies play as one continuous stream, not one buffer per chunk
+- **Date:** 2026-11-10 · **Status:** Adopted, after the first test on a phone through the
+  tunnel: "the audio response is very jagged and distorted, totally unusable".
+- **Measured first:**
+  - *The source is clean.* One reply synthesised by Timbre: peak −0.9 dBFS, no sample at full
+    scale, 99.1% of the energy below 4 kHz (so the byte order is right), and a median pitch
+    of 213 Hz (so 16 kHz is the true rate: 24 kHz audio played at 16 kHz would read ~140 Hz).
+  - *It arrives 10x faster than real time:* 4.0 s of audio between 0.89 s and 1.31 s.
+  - *It arrives in pieces:* 73 chunks, 16-128 ms each, median 32 ms.
+- **Cause:** the page played each chunk as its own `AudioBufferSource`, so a reply had about 70
+  joins. Each buffer is resampled on its own from 16 kHz to the phone's rate, and at 44.1 kHz
+  a 16 ms chunk is not a whole number of output samples, so every join was a small
+  discontinuity. Live, it was worse: a chunk that arrived after its slot was scheduled 60 ms
+  later, so each late chunk added a gap. The public tunnel adds delay, and the laptop was
+  out of memory (0.5 GB of commit free), which stalls the server.
+- **Decision:** one `ScriptProcessor` node plays a single queue for the whole reply. It
+  resamples with linear interpolation across chunk boundaries, so there are no joins. It
+  starts once 200 ms is queued (or the reply has ended); if the network falls behind, it
+  pauses once and refills, rather than stuttering on every late chunk.
+- **Checked** (`scripts.ui_check`, playback): a 440 Hz tone cut into Timbre's chunk sizes is
+  played by the page's own code and compared with a pure tone. The new player is 59.0 dB
+  clean at 44.1 kHz and 56.1 dB at 48 kHz, and all of the audio plays exactly once. The old
+  way, rendered offline in the same Chrome with perfect timing, was 46.4 and 35.7 dB, before
+  any network gap.
+- **Cost:** up to 200 ms more before the first word is heard. The measured latency (to the
+  first TTS byte, server side) is unchanged.
+- **Rejected:**
+  - *Ask Timbre for the phone's own rate.* That fixes resampling but not late chunks, and
+    44.1 kHz support is unverified (hard rule 2).
+  - *An AudioWorklet.* Cleaner, but it needs a module file and has never been tried on the
+    phones this page has run on; ScriptProcessor already carries the microphone there.

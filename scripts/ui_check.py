@@ -13,6 +13,8 @@ The owners this is for will use a phone, so this checks what a phone does:
            the app going to the background
   https    a phone on a plain http:// link (not localhost) is told why the mic
            cannot start
+  playback a reply in Timbre's 16-128 ms chunks plays as one clean stream at
+           44.1 and 48 kHz, all of it, once (D-050)
 
 Touches go through Chrome's DevTools protocol as real input, so the browser's
 own rules apply: on a phone the touch that begins a hold is not a user gesture,
@@ -275,6 +277,80 @@ async def downsample_check(tab: Tab) -> None:
           f"{db[0]:.1f} dB, against {db[1]:.1f} dB for picking every third sample")
 
 
+PLAYBACK = """(async (rate) => {
+  // A 440 Hz tone at 16 kHz, cut the way Timbre cuts a reply (Nov 10: 73 chunks,
+  // 16-128 ms, median 32 ms), played at a phone's output rate. Scored by how far the
+  // output is from a pure 440 Hz tone: clicks and gaps at the joins are the error.
+  const fs = 16000, f = 440, n = fs;
+  const pcm = Int16Array.from({length: n}, (_, i) => Math.round(16383 * Math.sin(2 * Math.PI * f * i / fs)));
+  const ms = [80, 16, 16, 16, 32, 16, 80, 32, 48, 32, 32, 32, 16, 128];
+  const chunks = [];
+  for (let at = 0, j = 0; at < n; j++) {
+    const len = (ms[j % ms.length] * fs) / 1000;
+    chunks.push(pcm.slice(at, at + len));
+    at += len;
+  }
+  const snr = (out, from, to) => {
+    let ss = 0, sc = 0, cc = 0, ys = 0, yc = 0;
+    const w = 2 * Math.PI * f / rate;
+    for (let i = from; i < to; i++) {
+      const s = Math.sin(w * i), c = Math.cos(w * i);
+      ss += s * s; sc += s * c; cc += c * c; ys += out[i] * s; yc += out[i] * c;
+    }
+    const det = ss * cc - sc * sc, a = (ys * cc - yc * sc) / det, b = (yc * ss - ys * sc) / det;
+    let sig = 0, err = 0;
+    for (let i = from; i < to; i++) {
+      const m = a * Math.sin(w * i) + b * Math.cos(w * i);
+      sig += m * m; err += (out[i] - m) ** 2;
+    }
+    return 10 * Math.log10(sig / err);
+  };
+
+  // Before D-050: one AudioBufferSource per chunk, scheduled back to back.
+  const off = new OfflineAudioContext(1, Math.ceil(1.2 * rate), rate);
+  let head = 0.06;
+  for (const c of chunks) {
+    const buf = off.createBuffer(1, c.length, fs);
+    buf.getChannelData(0).set(Float32Array.from(c, (v) => v / 32768));
+    const src = off.createBufferSource();
+    src.buffer = buf;
+    src.connect(off.destination);
+    src.start(head);
+    head += buf.duration;
+  }
+  const old = (await off.startRendering()).getChannelData(0);
+
+  // Now: the page's own player, fed the chunks as they arrive, with a reply-end.
+  const saved = [audioCtx, playNode];
+  audioCtx = {sampleRate: rate};
+  playNode = {};  // so playChunk does not build a real node; fillOutput is driven here
+  playRate = fs; playBuf = new Float32Array(0); playPos = 0; playing = false; replyEnded = false;
+  const out = [];
+  const pull = () => { const o = new Float32Array(2048); fillOutput(o); out.push(...o); };
+  chunks.forEach((c, i) => { playChunk(c.buffer); if (i % 4 === 3) pull(); });  // ~10x real time, as Timbre
+  replyEnded = true;
+  for (let k = 0; k < 40; k++) pull();
+  [audioCtx, playNode] = saved;
+  const first = out.findIndex((v) => v !== 0);
+  let last = out.length - 1;
+  while (last > 0 && out[last] === 0) last--;
+  return {
+    old: snr(old, Math.round(0.2 * rate), Math.round(1.0 * rate)),
+    now: snr(out, first + Math.round(0.1 * rate), first + Math.round(0.9 * rate)),
+    seconds: (last - first + 1) / rate,
+  };
+})"""
+
+
+async def playback_check(tab: Tab) -> None:
+    print("\nplaying a reply streamed in Timbre's chunks (D-050)")
+    for rate in (44100, 48000):
+        r = await tab.js(f"{PLAYBACK}({rate})")
+        check(r["now"] > 40, f"at {rate} Hz the reply plays as one clean stream",
+              f"{r['now']:.1f} dB from a pure tone, against {r['old']:.1f} dB one buffer per chunk")
+        check(abs(r["seconds"] - 1.0) < 0.01, f"at {rate} Hz all of it plays, once", f"{r['seconds']:.3f} s of 1 s")
+
+
 async def real_checks(tab: Tab, url: str, wav: Path) -> None:
     print("\nreal models: take 001 then 'haan', through the browser's microphone")
     await tab.open(url, 390, 844)
@@ -362,6 +438,7 @@ async def run(args) -> int:
                 await layout_checks(tab, url)
                 await touch_checks(tab, url)
                 await downsample_check(tab)
+                await playback_check(tab)
                 await https_check(tab, port)
             pump.cancel()
     finally:

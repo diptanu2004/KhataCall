@@ -229,7 +229,7 @@ const mic = $("mic");
 let ws, connected = false, serverState = "IDLE";
 let audioCtx = null, micStream = null, micSource = null, micNode = null;
 let micReady = false, micStarting = false;
-let holding = false, holdStartedAt = 0, holdTimer = null, hintTimer = null, playhead = 0;
+let holding = false, holdStartedAt = 0, holdTimer = null, hintTimer = null;
 const defaultHint = $("hint").innerHTML;
 
 function log(line, isError) {
@@ -356,24 +356,59 @@ function showLedger(m) {
   };
 }
 
-// --- playback: schedule raw PCM16 chunks back to back ---
+// --- playback: one continuous stream (D-050) ---
+// Timbre sends a reply as ~70 chunks of 16-32 ms. Played as one buffer each, every
+// join clicked: the browser resamples each buffer on its own, and at a phone's
+// 44.1 kHz a 16 ms chunk is not a whole number of output samples. So the chunks go
+// into one queue and a single node plays it, resampling continuously to the
+// context's rate. It starts once PREBUFFER_S is queued (or the reply has ended); if
+// the network falls behind, it pauses once and refills, instead of stuttering.
 
-let playRate = SAMPLE_RATE;
+const PREBUFFER_S = 0.2;
+let playRate = SAMPLE_RATE, playBuf = new Float32Array(0), playPos = 0;
+let playing = false, replyEnded = true, playNode = null;
+
+function fillOutput(out) {
+  const step = playRate / audioCtx.sampleRate;  // input samples per output frame
+  const queued = playBuf.length - playPos;
+  if (!playing && (queued >= PREBUFFER_S * playRate || (replyEnded && queued >= 2))) playing = true;
+  let i = 0;
+  if (playing) {
+    for (; i < out.length; i++) {
+      const k = Math.floor(playPos);
+      if (k + 1 >= playBuf.length) break;  // two samples are needed to interpolate
+      out[i] = playBuf[k] + (playBuf[k + 1] - playBuf[k]) * (playPos - k);
+      playPos += step;
+    }
+    if (i < out.length) playing = false;  // ran dry: refill before going on
+  }
+  out.fill(0, i);
+  const used = Math.min(Math.floor(playPos), playBuf.length);
+  playBuf = playBuf.subarray(used);
+  playPos -= used;
+  if (replyEnded && !playing && playBuf.length < 2) { playBuf = new Float32Array(0); playPos = 0; }
+}
+
+function startPlayer() {
+  if (playNode || !audioCtx) return;
+  // ScriptProcessor, like the microphone's: no module to load, and it runs on every phone.
+  // 4096 frames (85 ms at 48 kHz) gives a busy phone time to refill it between callbacks.
+  playNode = audioCtx.createScriptProcessor(4096, 1, 1);
+  playNode.onaudioprocess = (event) => fillOutput(event.outputBuffer.getChannelData(0));
+  playNode.connect(audioCtx.destination);
+}
 
 function playChunk(arrayBuffer) {
   if (!audioCtx) return;
   const pcm = new Int16Array(arrayBuffer);
   if (!pcm.length) return;
-  const buffer = audioCtx.createBuffer(1, pcm.length, playRate);
-  const channel = buffer.getChannelData(0);
-  for (let i = 0; i < pcm.length; i++) channel[i] = pcm[i] / 32768;
-  const source = audioCtx.createBufferSource();
-  source.buffer = buffer;
-  source.connect(audioCtx.destination);
-  // Keep a small cushion so consecutive chunks do not click.
-  playhead = Math.max(playhead, audioCtx.currentTime + 0.06);
-  source.start(playhead);
-  playhead += buffer.duration;
+  startPlayer();
+  const rest = playBuf.subarray(Math.floor(playPos));
+  const next = new Float32Array(rest.length + pcm.length);
+  next.set(rest);
+  for (let i = 0; i < pcm.length; i++) next[rest.length + i] = pcm[i] / 32768;
+  playPos -= Math.floor(playPos);
+  playBuf = next;
 }
 
 // --- phone-line mode ---
@@ -598,8 +633,8 @@ function connect() {
         pendingHeard = null;
         break;
       case "agent_text": addTurn("KhataCall", m.text); break;
-      case "audio_start": playRate = m.sample_rate; playhead = 0; break;
-      case "audio_end": break;
+      case "audio_start": playRate = m.sample_rate; replyEnded = false; break;
+      case "audio_end": replyEnded = true; break;
       case "latency":
         showLatency(m);
         log(m.total_ms == null ? "latency: no audio" : `latency total ${Math.round(m.total_ms)} ms`);
