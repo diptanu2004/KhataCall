@@ -1529,3 +1529,38 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
     44.1 kHz support is unverified (hard rule 2).
   - *An AudioWorklet.* Cleaner, but it needs a module file and has never been tried on the
     phones this page has run on; ScriptProcessor already carries the microphone there.
+
+## D-051 — Evon sees one utterance, as it was measured; its own figures are never spoken
+- **Date:** 2026-11-10 · **Status:** Adopted, after the first conversation on a phone:
+  "Sharma ji ke khate me kitna h?" was answered with "Sharma ji ke khate me kitna h?".
+- **Measured** (real Evon, text, no credits), the balance question in five phrasings, three
+  times each:
+
+  | Evon is sent | calls `get_balance` | answers in its own words |
+  |---|---|---|
+  | the system prompt and the question (as in the eval, `evon_check`, `demo_check`) | 15 of 15 | 0 |
+  | the same after 4 turns of a session's history | 0 of 15 | 15 of 15 |
+
+  With the history, the answers came from the conversation, not the ledger. One of them
+  gave Sharma ji Mehra ji's balance ("Sharma ji ka ab 350 rupaye baaki hai"). The echo on
+  the phone is the same failure in another form: text instead of a tool call.
+- **Cause:** the session's history holds the agent's spoken replies ("Likh diya. Sharma ji
+  ka ab 550 rupaye baaki hai.") as plain assistant text, without the tool calls behind
+  them. To Evon, those turns look like questions answered directly in words, and it
+  copies them.
+- **Decision:**
+  - *Evon is sent the system prompt and this utterance, nothing else.* That is the input
+    every measurement of it used, so the reported accuracy now describes the live agent.
+    The session still keeps the history: the name check (fix 5) reads the last 3 user turns.
+  - *A backstop in code* (`session.unsafe_to_say`): with the ledger on, Evon's own text is
+    not spoken if it repeats the owner, contains a figure, or states an amount in rupees
+    without asking a question. The agent says "samajh nahi aaya, phir se boliye" instead.
+    Greetings and questions back ("Kitne rupaye?") still pass.
+- **Checked:** a 9-turn conversation through the real `Session` with real Evon (writes,
+  "haan", the part-paid bill, then four balance questions and a stock question), run twice:
+  every answer came from the ledger and was right both times.
+- **Given up:** references to an earlier turn ("unka do sau aur likho"). Evon cannot see
+  that turn now, so it asks, or names someone; then the name check or the read-back catches
+  it. These references were never measured, and the read-back protects the book.
+- **Rejected:** *put the tool calls and their results in the history.* A balance from three
+  turns ago is stale after any write, and Evon would still answer from it.

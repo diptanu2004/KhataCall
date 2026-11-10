@@ -10,7 +10,14 @@ import pytest
 from app.adapters.base import LLMReply
 from app.adapters.fakes import FailingTTS, FakeLiveSTT, FakeLLM, FakeSTT, FakeTTS
 from app.channel.phone import PhoneLine
-from app.pipeline.session import COULD_NOT_HEAR, MAX_HISTORY_MESSAGES, SOMETHING_BROKE, Session
+from app.pipeline.session import (
+    COULD_NOT_HEAR,
+    MAX_HISTORY_MESSAGES,
+    NOT_UNDERSTOOD,
+    SOMETHING_BROKE,
+    Session,
+    unsafe_to_say,
+)
 from app.protocol import CLIENT_SAMPLE_RATE, State
 
 UTTERANCE = "sharma ji ka dedh sau udhaar likho"
@@ -197,7 +204,9 @@ def test_latency_is_sent_once_per_turn():
 # --- conversation memory ---------------------------------------------------
 
 
-def test_history_accumulates_and_is_passed_to_the_llm():
+def test_evon_sees_only_this_utterance_but_the_session_remembers_the_conversation():
+    """D-051: with the history, real Evon answered balances from memory instead of calling
+    get_balance (15 of 15), once with another customer's figure. Without it: 15 of 15 calls."""
     session, _, _, llm, _ = build(
         transcripts=(UTTERANCE, "aur Gupta aunty ka?"), replies=(REPLY, "Woh bhi abhi nahi."),
     )
@@ -205,11 +214,12 @@ def test_history_accumulates_and_is_passed_to_the_llm():
     asyncio.run(one_turn(session))
 
     second_call_messages, _ = llm.calls[1]
-    contents = [m.content for m in second_call_messages]
-    assert contents[0].startswith("Tum \"KhataCall\" ho")  # system prompt stays first
-    assert UTTERANCE in contents
-    assert REPLY in contents
-    assert "aur Gupta aunty ka?" in contents
+    assert [m.role for m in second_call_messages] == ["system", "user"]
+    assert second_call_messages[0].content.startswith("Tum \"KhataCall\" ho")
+    assert second_call_messages[1].content == "aur Gupta aunty ka?"
+    # The conversation is still kept: the name check reads the last few user turns.
+    contents = [m.content for m in session.history]
+    assert UTTERANCE in contents and REPLY in contents and "aur Gupta aunty ka?" in contents
 
 
 def test_history_is_capped_but_keeps_the_system_prompt():
@@ -491,3 +501,44 @@ def test_an_llm_without_warm_is_left_alone():
     session, rec, *_ = build()
     asyncio.run(one_turn(session))
     assert rec.first("agent_text")["text"] == REPLY
+
+
+# --- Evon's own words, with the ledger on (D-051) --------------------------------
+
+
+@pytest.mark.parametrize(
+    "said, utterance",
+    [
+        ("Sharma ji ke khate me kitna h?", "Sharma ji ke khate me kitna h?"),  # Nov 10, on the phone
+        ("Sharma ji ka ab 350 rupaye baaki hai.", "Sharma ji ke khate me kitna h?"),  # Mehra ji's figure
+        ("Sharma ji ka ab paanch sau rupaye baaki hai.", "Sharma ji ka kitna baaki hai?"),
+    ],
+)
+def test_evon_never_speaks_a_figure_or_the_owners_own_words(said, utterance):
+    assert unsafe_to_say(said, utterance) is not None
+
+
+@pytest.mark.parametrize(
+    "said", ["Namaste! Boliye, kya likhna hai?", "Kiska khata? Naam boliye.", "Kitne rupaye?",
+             "Main sirf dukaan ka hisaab sambhalta hoon."],
+)
+def test_greetings_and_questions_back_are_spoken(said):
+    assert unsafe_to_say(said, "Sharma ji ka kitna baaki hai?") is None
+
+
+def test_with_the_ledger_on_a_balance_from_evons_memory_is_not_spoken():
+    from app.ledger.db import connect
+    from app.ledger.repo import Ledger
+
+    ledger = Ledger(connect(":memory:"))
+    ledger.add_customer("Sharma ji")
+    rec = Recorder()
+    session = Session(
+        stt=FakeLiveSTT(["Sharma ji ke khate me kitna h?"]),
+        llm=FakeLLM([LLMReply(text="Sharma ji ka ab 350 rupaye baaki hai.")]),
+        tts=FakeTTS(), send_json=rec.send_json, send_bytes=rec.send_bytes,
+        stt_language="en-IN", tts_language="hi-en", tts_voice="Poorvi",
+        client_sample_rate=CLIENT_SAMPLE_RATE, ledger=ledger,
+    )
+    asyncio.run(one_turn(session))
+    assert rec.first("agent_text")["text"] == NOT_UNDERSTOOD

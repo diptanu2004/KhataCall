@@ -17,6 +17,7 @@ and the three adapters, so the whole turn can be tested with fakes.
 import asyncio
 import base64
 import logging
+import re
 import time
 import zlib
 from collections.abc import Awaitable, Callable, Sequence
@@ -53,6 +54,28 @@ log = logging.getLogger(__name__)
 # Spoken when something fails. Short, because it is synthesised on the critical path.
 COULD_NOT_HEAR = "Maaf kijiye, phir se boliye?"
 SOMETHING_BROKE = "Maaf kijiye, kuch gadbad ho gayi. Phir se boliye?"
+NOT_UNDERSTOOD = "Maaf kijiye, samajh nahi aaya. Phir se boliye?"
+
+_WORDS = re.compile(r"[a-z0-9]+")
+_MONEY_WORDS = frozenset("rupaye rupay rupaya rupaiya rupees rupee rs".split())
+
+
+def unsafe_to_say(text: str, utterance: str) -> str | None:
+    """Why Evon's own words must not be spoken (with the tools on), or None if they may be.
+
+    Evon's text is for greetings and questions back. A figure, or an amount stated in
+    rupees, is something only the ledger may say: after a few turns of history, Evon
+    answered balance questions from memory, once with another customer's figure. And a
+    reply that only repeats the owner's words answers nothing (D-051).
+    """
+    words = _WORDS.findall(text.lower())
+    if words == _WORDS.findall(utterance.lower()):
+        return "it repeated the owner"
+    if any(ch.isdigit() for ch in text):
+        return "it states a figure"
+    if any(w in _MONEY_WORDS for w in words) and not text.rstrip().endswith("?"):
+        return "it states an amount"
+    return None
 
 # Turns of dialogue kept as context. Evon has a 128K window, but a long history costs
 # latency on every turn and a kirana exchange rarely needs more.
@@ -328,7 +351,12 @@ class Session:
         self._remember("user", text)
         llm_start = time.perf_counter()
         try:
-            reply = await self._llm.complete(self._history, tools=self._tools)
+            # Evon sees this utterance alone, as in every measurement of it (the eval,
+            # evon_check, demo_check). Given the history, it stopped calling tools: the
+            # history holds the agent's spoken replies but not the calls behind them, so
+            # Evon copied them and answered balances from memory, one of them with another
+            # customer's figure (D-051). The history still feeds the name check's context.
+            reply = await self._llm.complete([self._history[0], Message("user", text)], tools=self._tools)
         except Exception as e:
             log.exception("LLM failed")
             await self._send(ErrorMessage(message=f"Evon failed: {e}", spoken=True))
@@ -348,7 +376,11 @@ class Session:
         holds every write until the shop owner agrees.
         """
         if self._executor is None or not reply.tool_calls:
-            return (reply.text or "").strip() or SOMETHING_BROKE
+            said = (reply.text or "").strip()
+            if self._executor is not None and said and (why := unsafe_to_say(said, utterance)):
+                log.info("not speaking Evon's text (%s): %r", why, said)
+                return NOT_UNDERSTOOD
+            return said or SOMETHING_BROKE
 
         # One tool per turn: the confirmation gate is a conversation, and two
         # pending writes cannot both be read back at once.
