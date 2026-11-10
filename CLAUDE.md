@@ -281,7 +281,7 @@ first fully real conversation in D-032.
 - [x] Tools, executor, confirmation gate
 - [x] Live ledger panel in the UI (`ledger_update` messages)
 - [x] Seed script with synthetic customers/items (`scripts/seed.py`)
-- [ ] [human] Build-in-public post #1 (LinkedIn/X with contest hashtags) → **Mon Nov 2 / Tue Nov 3**
+- [x] ~~[human] Build-in-public post #1~~ Not required: the official page asks for one demo post per platform (Nov 10, see Mon Nov 9)
 
 **Done when:** "Sharma ji ka dedh sau udhaar likho" → read-back → "haan" → the ledger updates live.
 ✅ Verified Oct 13 against the running server: Rs 400 → "Sharma ji ke khate mein 150
@@ -318,7 +318,7 @@ come from the same commit and the same cached transcripts.
 - [x] Fix 2, number spellings: "nao", "ikkes", "unteen", filler "mile" (D-031, D-038)
 - [x] Dev set frozen: `eval/corpus/dev_ids.txt` (the 60 takes the fixes were designed from).
       Dev result: clean 70.0% → 78.3% correct, wrong 11.7% → 6.7%; no row made worse (D-042)
-- [ ] [human] Post #1, with the baseline chart as the hook
+- [x] ~~[human] Post #1, with the baseline chart as the hook~~ Not required (one demo post per platform)
 - [x] [human] ~~Calibrate the mic, then~~ start recording the 120 lines
 
 **Tue Nov 3**
@@ -370,10 +370,14 @@ come from the same commit and the same cached transcripts.
       silent holds, and the first press on a phone recording nothing (D-047)
 
 **Mon Nov 9**
-- [ ] [human] Submit: demo, written explanation, models used, post links; nominate post #1 and the main post
-- [x] Final check: tests green, README links work, results committed (Nov 10: 823 pass;
-      `scripts.demo_check` 13/13 on real Evon; the repo is still private and 30+ commits ahead
-      of GitHub, so push it and give the judges access)
+- [ ] [human] Submit through the form emailed to the registered address, by **11:59 PM IST Nov 10**:
+      demo video, written explanation, Gnani models used, one nominated post link per platform
+      (LinkedIn and/or X; #GreatIndianAIInternshipChallenge #GnaniAI, tag Gnani AI). Shortlisting
+      ranks verified engagement on the nominated posts, so post early. The 60-second limit applies
+      only to the Demo Day Drop award (https://gnani.ai/internship, read Nov 10)
+- [x] Final check: tests green, README links work, results committed (Nov 10: 827 pass;
+      `scripts.demo_check` 13/13 on real Evon). Pushed to GitHub `master` and `main` Nov 10; the
+      repo is private until the owner makes it public
 
 **Tue Nov 10 — deadline.** Emergency fixes only; the submission is already in.
 
