@@ -364,14 +364,27 @@ function showLedger(m) {
 // context's rate. It starts once PREBUFFER_S is queued (or the reply has ended); if
 // the network falls behind, it pauses once and refills, instead of stuttering.
 
-const PREBUFFER_S = 0.2;
+//
+// A prebuffer only helps if the reply arrives faster than it plays. Through a
+// throttled tunnel it did not, and the reply came out in 0.2 s bursts. So the
+// arrival speed (seconds of audio per second) is measured too: below FAST_ENOUGH,
+// the reply is held until it has all arrived, then played whole. Later, but in one piece.
+
+const PREBUFFER_S = 0.2, FAST_ENOUGH = 1.5;
 let playRate = SAMPLE_RATE, playBuf = new Float32Array(0), playPos = 0;
 let playing = false, replyEnded = true, playNode = null;
+let replyFirstAt = 0, replyAudioS = 0, replyRefills = 0;
+
+function arrivalSpeed() {
+  // Floored at 0.1 s: a first burst of chunks that lands at once says nothing yet.
+  return replyAudioS / Math.max(0.1, (performance.now() - replyFirstAt) / 1000);
+}
 
 function fillOutput(out) {
   const step = playRate / audioCtx.sampleRate;  // input samples per output frame
   const queued = playBuf.length - playPos;
-  if (!playing && (queued >= PREBUFFER_S * playRate || (replyEnded && queued >= 2))) playing = true;
+  if (!playing && queued >= 2 &&
+      (replyEnded || (queued >= PREBUFFER_S * playRate && arrivalSpeed() >= FAST_ENOUGH))) playing = true;
   let i = 0;
   if (playing) {
     for (; i < out.length; i++) {
@@ -380,7 +393,10 @@ function fillOutput(out) {
       out[i] = playBuf[k] + (playBuf[k + 1] - playBuf[k]) * (playPos - k);
       playPos += step;
     }
-    if (i < out.length) playing = false;  // ran dry: refill before going on
+    if (i < out.length) {  // ran dry: refill before going on
+      playing = false;
+      if (!replyEnded) replyRefills++;
+    }
   }
   out.fill(0, i);
   const used = Math.min(Math.floor(playPos), playBuf.length);
@@ -403,6 +419,8 @@ function playChunk(arrayBuffer) {
   const pcm = new Int16Array(arrayBuffer);
   if (!pcm.length) return;
   startPlayer();
+  if (!replyFirstAt) replyFirstAt = performance.now();
+  replyAudioS += pcm.length / playRate;
   const rest = playBuf.subarray(Math.floor(playPos));
   const next = new Float32Array(rest.length + pcm.length);
   next.set(rest);
@@ -633,8 +651,19 @@ function connect() {
         pendingHeard = null;
         break;
       case "agent_text": addTurn("KhataCall", m.text); break;
-      case "audio_start": playRate = m.sample_rate; replyEnded = false; break;
-      case "audio_end": replyEnded = true; break;
+      case "audio_start":
+        playRate = m.sample_rate; replyEnded = false; replyFirstAt = 0; replyAudioS = 0; replyRefills = 0;
+        break;
+      case "audio_end": {
+        replyEnded = true;
+        if (!replyFirstAt) break;
+        const took = (performance.now() - replyFirstAt) / 1000, speed = replyAudioS / Math.max(took, 0.001);
+        log(`reply audio: ${replyAudioS.toFixed(1)} s arrived in ${took.toFixed(1)} s (${speed.toFixed(1)}x real time)` +
+            (replyRefills ? `, ran dry ${replyRefills}x` : "") +
+            (speed < 1 ? ". The link is slower than speech: use a faster tunnel (docs/DEMO.md)." : ""),
+            speed < 1);
+        break;
+      }
       case "latency":
         showLatency(m);
         log(m.total_ms == null ? "latency: no audio" : `latency total ${Math.round(m.total_ms)} ms`);

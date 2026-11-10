@@ -277,7 +277,7 @@ async def downsample_check(tab: Tab) -> None:
           f"{db[0]:.1f} dB, against {db[1]:.1f} dB for picking every third sample")
 
 
-PLAYBACK = """(async (rate) => {
+PLAYBACK = """(async (rate, speed) => {
   // A 440 Hz tone at 16 kHz, cut the way Timbre cuts a reply (Nov 10: 73 chunks,
   // 16-128 ms, median 32 ms), played at a phone's output rate. Scored by how far the
   // output is from a pure 440 Hz tone: clicks and gaps at the joins are the error.
@@ -320,24 +320,44 @@ PLAYBACK = """(async (rate) => {
   }
   const old = (await off.startRendering()).getChannelData(0);
 
-  // Now: the page's own player, fed the chunks as they arrive, with a reply-end.
-  const saved = [audioCtx, playNode];
+  // Now: the page's own player, on a simulated clock. Chunks arrive at `speed` times
+  // real time (Timbre: ~10x; a throttled tunnel: below 1), and the output is pulled
+  // in 2048-frame blocks as a real audio device would, one block per 2048 frames of time.
+  const saved = [audioCtx, playNode, performance.now];
+  let clock = 0;  // ms
+  performance.now = () => clock;
   audioCtx = {sampleRate: rate};
   playNode = {};  // so playChunk does not build a real node; fillOutput is driven here
   playRate = fs; playBuf = new Float32Array(0); playPos = 0; playing = false; replyEnded = false;
+  replyFirstAt = 0; replyAudioS = 0; replyRefills = 0;
   const out = [];
-  const pull = () => { const o = new Float32Array(2048); fillOutput(o); out.push(...o); };
-  chunks.forEach((c, i) => { playChunk(c.buffer); if (i % 4 === 3) pull(); });  // ~10x real time, as Timbre
+  const pullUntil = (ms) => {
+    while ((out.length / rate) * 1000 < ms) { const o = new Float32Array(2048); fillOutput(o); out.push(...o); }
+  };
+  for (const c of chunks) {
+    clock += (c.length / fs) * 1000 / speed;
+    pullUntil(clock);
+    playChunk(c.buffer);
+  }
   replyEnded = true;
-  for (let k = 0; k < 40; k++) pull();
-  [audioCtx, playNode] = saved;
+  pullUntil(clock + 1500);
+  [audioCtx, playNode, performance.now] = saved;
+
   const first = out.findIndex((v) => v !== 0);
   let last = out.length - 1;
   while (last > 0 && out[last] === 0) last--;
+  // Pauses inside the reply: runs of 10 ms or more of exact silence between first and last.
+  let pauses = 0, zeros = 0;
+  for (let i = first; i <= last; i++) {
+    if (out[i] === 0) zeros++;
+    else { if (zeros >= rate / 100) pauses++; zeros = 0; }
+  }
   return {
     old: snr(old, Math.round(0.2 * rate), Math.round(1.0 * rate)),
     now: snr(out, first + Math.round(0.1 * rate), first + Math.round(0.9 * rate)),
     seconds: (last - first + 1) / rate,
+    pauses,
+    startsAfter: first / rate,
   };
 })"""
 
@@ -345,10 +365,15 @@ PLAYBACK = """(async (rate) => {
 async def playback_check(tab: Tab) -> None:
     print("\nplaying a reply streamed in Timbre's chunks (D-050)")
     for rate in (44100, 48000):
-        r = await tab.js(f"{PLAYBACK}({rate})")
-        check(r["now"] > 40, f"at {rate} Hz the reply plays as one clean stream",
-              f"{r['now']:.1f} dB from a pure tone, against {r['old']:.1f} dB one buffer per chunk")
+        r = await tab.js(f"{PLAYBACK}({rate}, 10)")
+        check(r["now"] > 40 and r["pauses"] == 0, f"at {rate} Hz the reply plays as one clean stream",
+              f"{r['now']:.1f} dB from a pure tone, against {r['old']:.1f} dB one buffer per chunk; "
+              f"{r['pauses']} pauses, starts after {r['startsAfter'] * 1000:.0f} ms")
         check(abs(r["seconds"] - 1.0) < 0.01, f"at {rate} Hz all of it plays, once", f"{r['seconds']:.3f} s of 1 s")
+    slow = await tab.js(f"{PLAYBACK}(48000, 0.5)")
+    check(slow["pauses"] == 0 and abs(slow["seconds"] - 1.0) < 0.01,
+          "on a link at half real time it plays whole, once it has arrived, not in bursts",
+          f"{slow['pauses']} pauses, starts after {slow['startsAfter']:.2f} s")
 
 
 async def real_checks(tab: Tab, url: str, wav: Path) -> None:

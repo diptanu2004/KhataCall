@@ -1564,3 +1564,12 @@ add_credit 59/60, record_payment 39/45, update_stock 23/30.
   it. These references were never measured, and the read-back protects the book.
 - **Rejected:** *put the tool calls and their results in the history.* A balance from three
   turns ago is stale after any write, and Evon would still answer from it.
+- **Addendum, same day: a link slower than speech.** Through localhost.run's free tier, the
+  reply played in 0.2 s bursts: the prebuffer filled, ran dry, and refilled, so the audio
+  was arriving slower than it plays (16 kHz PCM16 is 32 KB/s; Timbre itself delivers 10x
+  real time). No prebuffer can fix that, so the player also measures arrival speed. Below
+  1.5x real time it holds the reply until `audio_end` and plays it whole, and the Log panel
+  reports each reply's speed. Checked on a simulated clock: at 10x the reply starts after
+  ~45 ms with no pauses; at 0.5x it starts after 2.0 s, also with no pauses. The fix for the
+  demo is the tunnel: docs/DEMO.md now uses Cloudflare's quick tunnel. *Rejected for now:*
+  μ-law over the socket. It halves the bytes, but a link at half speed would only just keep up.

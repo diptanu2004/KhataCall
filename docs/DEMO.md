@@ -28,12 +28,17 @@ and the ledger updates. Then the chart shows the measured result behind it.
    ```
 
 4. **An https address for the phone** (phones allow the microphone only over https).
-   Either of these prints one; nothing to install for the first:
+   Use Cloudflare's quick tunnel (install once with `winget install --id Cloudflare.cloudflared`,
+   then open a new terminal):
 
    ```bash
-   ssh -R 80:127.0.0.1:8010 nokey@localhost.run      # prints https://<random>.lhr.life
    cloudflared tunnel --url http://127.0.0.1:8010    # prints https://<random>.trycloudflare.com
    ```
+
+   Not localhost.run (`ssh -R 80:127.0.0.1:8010 nokey@localhost.run`): it needs nothing
+   installed, but on Nov 10 its free tier delivered the reply audio slower than it plays.
+   The page then holds each reply until it has arrived, which adds seconds. The Log panel
+   says how fast each reply arrived ("reply audio: 4.0 s arrived in 8.1 s (0.5x real time)").
 
    The address is public and has no login: anyone who has it can spend credits
    and change the ledger. Stop it (Ctrl+C) as soon as the recording is done.
